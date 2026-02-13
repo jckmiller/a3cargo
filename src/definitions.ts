@@ -507,3 +507,35 @@ export const DEFAULT_LIBRARY: LibraryItemDef[] = [
     group: 'Furniture' 
   },
 ];
+
+// ============================================================================
+// SAVE/LOAD FILE FORMAT
+// ============================================================================
+
+/**
+ * Represents a saved container load configuration.
+ * Can be exported to a file and later imported to restore the exact state.
+ */
+export interface SavedLoad {
+  /** File format version for compatibility checking */
+  version: string;
+  
+  /** Container type identifier */
+  containerType: string;
+  
+  /** Array of all cargo items with their positions and properties */
+  items: CargoItem[];
+  
+  /** Optional user preferences */
+  preferences?: {
+    gridSize?: number;
+    colorMode?: ColorMode;
+    snapEnabled?: boolean;
+  };
+  
+  /** ISO timestamp of when the load was exported */
+  exportDate: string;
+  
+  /** Optional user-provided name/description for the load */
+  loadName?: string;
+}

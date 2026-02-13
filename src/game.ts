@@ -357,6 +357,8 @@ export class ContainerVizApp {
       onToggleTheme: () => this.toggleTheme(),
       onToggleLabels: () => this.toggleLabels(),
       onEditItem: (id, changes) => this.editItem(id, changes),
+      onSaveLoad: () => this.saveLoad(),
+      onLoadFile: () => this.loadFile(),
     };
     buildUI(this.callbacks);
   }
@@ -906,6 +908,118 @@ export class ContainerVizApp {
     this.items = [];
     this.selectItem(null);
     this.refreshUI();
+  }
+
+  // ========================================================================
+  // SAVE/LOAD FUNCTIONALITY
+  // ========================================================================
+
+  /**
+   * Exports the current container load to a JSON file.
+   * The file can be imported later to restore the exact configuration.
+   */
+  private saveLoad(): void {
+    if (this.items.length === 0) {
+      showToast('Add items to the container before saving', 'warning');
+      return;
+    }
+
+    const savedLoad: import('./definitions').SavedLoad = {
+      version: '1.0',
+      containerType: this.containerSpec.name,
+      items: this.items,
+      preferences: {
+        gridSize: this.gridSize,
+        colorMode: this.colorMode,
+        snapEnabled: this.snapEnabled,
+      },
+      exportDate: new Date().toISOString(),
+    };
+
+    const json = JSON.stringify(savedLoad, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `a3-load-${Date.now()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    
+    showToast('Container load saved successfully!', 'success');
+  }
+
+  /**
+   * Opens file picker to import a saved container load.
+   * Validates and restores the saved configuration.
+   */
+  private loadFile(): void {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,.a3load';
+    
+    input.addEventListener('change', async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const savedLoad: import('./definitions').SavedLoad = JSON.parse(text);
+
+        // Validate file format
+        if (!savedLoad.version || !savedLoad.containerType || !savedLoad.items) {
+          showToast('Invalid file format', 'error');
+          return;
+        }
+
+        // Confirm if there are existing items
+        if (this.items.length > 0) {
+          if (!confirm('Loading this file will replace your current items. Continue?')) {
+            return;
+          }
+        }
+
+        // Clear current items
+        this.clearAll();
+
+        // Set container type
+        if (CONTAINER_SPECS[savedLoad.containerType]) {
+          this.containerSpec = CONTAINER_SPECS[savedLoad.containerType];
+          this.buildContainer();
+        }
+
+        // Apply preferences if available
+        if (savedLoad.preferences) {
+          if (savedLoad.preferences.gridSize) {
+            this.gridSize = savedLoad.preferences.gridSize;
+          }
+          if (savedLoad.preferences.colorMode) {
+            this.colorMode = savedLoad.preferences.colorMode;
+          }
+          if (savedLoad.preferences.snapEnabled !== undefined) {
+            this.snapEnabled = savedLoad.preferences.snapEnabled;
+          }
+        }
+
+        // Load all items
+        for (const itemData of savedLoad.items) {
+          const item: CargoItem = { ...itemData };
+          this.items.push(item);
+          this.createItemMeshInternal(item);
+          this.labelManager.createLabel(item);
+        }
+
+        this.refreshUI();
+        this.resetView();
+
+        showToast(`Loaded ${savedLoad.items.length} items from file`, 'success');
+      } catch (e) {
+        showToast('Could not load file: ' + (e as Error).message, 'error');
+      }
+    });
+
+    input.click();
   }
 
   private resetView(): void {
