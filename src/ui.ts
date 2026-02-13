@@ -1,4 +1,21 @@
 
+/**
+ * User Interface Layer
+ * 
+ * Handles all UI generation and user interaction for the A3 Shipping Pro application.
+ * This file manages:
+ * - UI component creation (panels, tabs, forms, buttons)
+ * - Event listener setup
+ * - Modal dialogs (manifest, load plan, edit item)
+ * - Item library management
+ * - Statistics display and updates
+ * - Toast notifications
+ * - Item list rendering
+ * 
+ * The UI is built programmatically in JavaScript for maximum flexibility.
+ * It uses a callback pattern to communicate user actions back to the main app.
+ */
+
 import {
   ContainerSpec,
   CONTAINER_SPECS,
@@ -24,6 +41,15 @@ import {
 } from "./utils";
 import { persistence } from "./libs/persistence";
 
+// ============================================================================
+// UI CALLBACK INTERFACE
+// ============================================================================
+
+/**
+ * Callback interface for UI events.
+ * The UI layer calls these functions when user performs actions,
+ * and the main application implements the actual logic.
+ */
 export interface UICallbacks {
   onContainerChange: (specName: string) => void;
   onAddItem: (item: Omit<CargoItem, 'id' | 'posX' | 'posY' | 'posZ' | 'visible' | 'color' | 'rotationY' | 'origLengthIn' | 'origWidthIn' | 'origHeightIn'>) => void;
@@ -48,16 +74,49 @@ export interface UICallbacks {
   onEditItem: (id: string, changes: Partial<Pick<CargoItem, 'label' | 'lengthIn' | 'widthIn' | 'heightIn' | 'weightLbs' | 'category' | 'color'>>) => void;
 }
 
+// ============================================================================
+// MODULE STATE
+// ============================================================================
+
+/** Counter for cycling through item colors in custom mode */
 let colorCounter = 0;
+
+/** User's custom library items (saved in localStorage) */
+let userLibrary: LibraryItemDef[] = [];
+
+/** Combined library (default + user presets) */
+let allLibraryItems: LibraryItemDef[] = [...DEFAULT_LIBRARY];
+
+/** Current grid size (tracked for UI updates) */
+let currentGridSize = DEFAULT_GRID_SIZE;
+
+/** Global callbacks reference (used by helper functions) */
+let _globalCallbacks: UICallbacks | null = null;
+
+// ============================================================================
+// COLOR MANAGEMENT
+// ============================================================================
+
+/**
+ * Gets the next color from the palette for custom color mode.
+ * Cycles through ITEM_COLORS array sequentially.
+ * 
+ * @returns Hex color code string
+ */
 export function getNextColor(): string {
   const c = ITEM_COLORS[colorCounter % ITEM_COLORS.length];
   colorCounter++;
   return c;
 }
 
-let userLibrary: LibraryItemDef[] = [];
-let allLibraryItems: LibraryItemDef[] = [...DEFAULT_LIBRARY];
+// ============================================================================
+// LIBRARY MANAGEMENT
+// ============================================================================
 
+/**
+ * Loads user's custom library presets from localStorage.
+ * Called on app initialization.
+ */
 async function loadUserLibrary(): Promise<void> {
   try {
     const raw = await persistence.getItem('userLibrary');
@@ -68,20 +127,44 @@ async function loadUserLibrary(): Promise<void> {
   } catch (e) { /* ignore */ }
 }
 
+/**
+ * Saves user's custom library presets to localStorage.
+ */
 async function saveUserLibrary(): Promise<void> {
   try {
     await persistence.setItem('userLibrary', JSON.stringify(userLibrary));
   } catch (e) { /* ignore */ }
 }
 
+/**
+ * Rebuilds the complete library by merging default and user presets.
+ */
 function rebuildAllLibrary(): void {
   allLibraryItems = [...DEFAULT_LIBRARY, ...userLibrary];
 }
 
-let currentGridSize = DEFAULT_GRID_SIZE;
+// ============================================================================
+// UI BUILDING
+// ============================================================================
 
-let _globalCallbacks: UICallbacks | null = null;
-
+/**
+ * Builds the complete user interface programmatically.
+ * Creates all panels, tabs, forms, buttons, and sets up event listeners.
+ * 
+ * **UI Structure:**
+ * - Left Panel: Container selection, stats, add item form, library, settings
+ * - Viewport: 3D canvas, toolbar, overlays, indicators
+ * - Three tabs: Cargo, Library, Settings
+ * 
+ * @param callbacks - Object with callback functions for all user actions
+ * 
+ * @example
+ * buildUI({
+ *   onAddItem: (data) => console.log('Adding item:', data),
+ *   onSelectItem: (id) => console.log('Selected:', id),
+ *   // ... other callbacks
+ * });
+ */
 export function buildUI(callbacks: UICallbacks): void {
   _globalCallbacks = callbacks;
 
@@ -107,7 +190,7 @@ export function buildUI(callbacks: UICallbacks): void {
             <div class="subtitle">3D Container Loading</div>
           </div>
         </div>
-        <button class="theme-toggle-btn" id="theme-toggle" title="Toggle Light/Dark Mode">D</button>
+        <button class="theme-toggle-btn" id="theme-toggle" title="Switch to Dark Mode">🌙</button>
       </div>
     </div>
   `;
@@ -1454,7 +1537,8 @@ export function showValidationWarnings(result: ValidationResult): void {
 export function updateThemeIcon(isDark: boolean): void {
   const btn = document.getElementById('theme-toggle');
   if (btn) {
-    btn.textContent = isDark ? 'D' : 'L';
+    // Show sun icon in dark mode (to switch to light), moon icon in light mode (to switch to dark)
+    btn.textContent = isDark ? '☀️' : '🌙';
     btn.title = isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode';
   }
 }

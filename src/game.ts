@@ -1,4 +1,19 @@
 
+/**
+ * Main Application Controller
+ * 
+ * ContainerVizApp is the central controller class that orchestrates:
+ * - Three.js 3D scene rendering
+ * - User interface and event handling
+ * - Cargo item management and validation
+ * - Drag-and-drop interaction system
+ * - Camera controls and view presets
+ * - Export and reporting functionality
+ * - Theme and preferences management
+ * 
+ * This class initializes on construction and manages the complete application lifecycle.
+ */
+
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import {
@@ -53,51 +68,158 @@ import { ItemLabelManager } from "./labels";
 import { generateLoadPlan, generateLoadPlanHTML, generatePrintableLoadPlan, LoadStep } from "./loadplan";
 import { persistence } from "./libs/persistence";
 
+/**
+ * Main application class for the A3 Shipping Pro container loading visualization.
+ * 
+ * **Architecture:**
+ * - Manages Three.js scene, camera, renderer, and controls
+ * - Maintains cargo item state and 3D mesh representations
+ * - Handles user interactions (drag/drop, selection, rotation)
+ * - Coordinates with UI layer for updates and modals
+ * - Provides export and reporting capabilities
+ * 
+ * **Initialization Flow:**
+ * 1. Load saved theme preferences
+ * 2. Build UI components
+ * 3. Initialize Three.js scene with lighting
+ * 4. Create container visualization
+ * 5. Setup event listeners
+ * 6. Start animation loop
+ * 
+ * @example
+ * const app = new ContainerVizApp();
+ * // Application is now running with full interactive UI
+ */
 export class ContainerVizApp {
+  // ========================================================================
+  // THREE.JS SCENE COMPONENTS
+  // ========================================================================
+  
+  /** Main Three.js scene */
   private scene!: THREE.Scene;
+  
+  /** Perspective camera for 3D view */
   private camera!: THREE.PerspectiveCamera;
+  
+  /** WebGL renderer */
   private renderer!: THREE.WebGLRenderer;
+  
+  /** Orbit controls for camera manipulation */
   private controls!: OrbitControls;
+  
+  /** Raycaster for mouse picking */
   private raycaster = new THREE.Raycaster();
+  
+  /** Mouse position in normalized device coordinates */
   private mouse = new THREE.Vector2();
 
+  // ========================================================================
+  // CONTAINER STATE
+  // ========================================================================
+  
+  /** Current container specification */
   private containerSpec: ContainerSpec = CONTAINER_SPECS['20ft'];
+  
+  /** 3D mesh group for the container */
   private containerGroup: THREE.Group | null = null;
+  
+  /** Ground plane mesh */
   private groundPlane: THREE.Mesh | null = null;
+  
+  /** Environment lighting group */
   private envGroup: THREE.Group | null = null;
 
+  // ========================================================================
+  // CARGO ITEM STATE
+  // ========================================================================
+  
+  /** Array of all cargo items in the container */
   private items: CargoItem[] = [];
+  
+  /** Map of item IDs to their 3D mesh groups */
   private itemMeshes: Map<string, THREE.Group> = new Map();
+  
+  /** Currently selected item ID */
   private selectedItemId: string | null = null;
+  
+  /** Visual highlight for selected item */
   private selectionHighlight: THREE.Group | null = null;
 
-  // Drag state
+  // ========================================================================
+  // DRAG AND DROP STATE
+  // ========================================================================
+  
+  /** Whether user is currently dragging an item */
   private isDragging = false;
+  
+  /** Item being dragged */
   private dragItem: CargoItem | null = null;
+  
+  /** Invisible plane for drag raycasting */
   private dragPlane: THREE.Mesh | null = null;
+  
+  /** Offset from item origin to click point */
   private dragOffset = new THREE.Vector3();
+  
+  /** Item position before drag started (for revert) */
   private dragStartPos = { x: 0, y: 0, z: 0 };
+  
+  /** Preview mesh shown during drag */
   private ghostMesh: THREE.Group | null = null;
+  
+  /** Whether Shift key is held (forces floor placement) */
   private shiftHeld = false;
 
+  // ========================================================================
+  // USER PREFERENCES
+  // ========================================================================
+  
+  /** Whether grid snapping is enabled */
   private snapEnabled = true;
+  
+  /** Current grid size in inches */
   private gridSize = DEFAULT_GRID_SIZE;
+  
+  /** Whether floor grid is visible */
   private gridVisible = true;
+  
+  /** Current color mode for items */
   private colorMode: ColorMode = 'custom';
 
+  // ========================================================================
+  // ANIMATION AND INTERACTION STATE
+  // ========================================================================
+  
+  /** Animation frame request ID */
   private animationId: number = 0;
+  
+  /** Mouse position when button was pressed */
   private mouseDownPos = { x: 0, y: 0 };
+  
+  /** Whether mouse moved significantly since mousedown */
   private mouseDidDrag = false;
 
-  // Theme
-  private isDarkMode = true;
+  // ========================================================================
+  // THEME AND LABELS
+  // ========================================================================
+  
+  /** Current theme state (light mode is default) */
+  private isDarkMode = false;
 
-  // Labels
+  /** Manages 3D text labels on items */
   private labelManager!: ItemLabelManager;
 
-  // Store callbacks for external use
+  /** UI callback interface */
   private callbacks!: UICallbacks;
 
+  // ========================================================================
+  // INITIALIZATION
+  // ========================================================================
+
+  /**
+   * Initializes the complete application.
+   * Called once on instantiation to set up the entire app.
+   */
   constructor() {
     this.loadTheme();
     this.initUI();
@@ -107,15 +229,28 @@ export class ContainerVizApp {
     this.animate();
   }
 
+  /**
+   * Loads saved theme preference from localStorage.
+   * Defaults to light mode if no preference is saved.
+   */
   private async loadTheme(): Promise<void> {
     try {
       const theme = await persistence.getItem('theme');
-      if (theme === 'light') {
+      if (theme === 'dark') {
+        this.isDarkMode = true;
+        document.body.classList.remove('light-mode');
+      } else {
+        // Default to light mode
         this.isDarkMode = false;
         document.body.classList.add('light-mode');
       }
       updateThemeIcon(this.isDarkMode);
-    } catch (e) { /* ignore */ }
+    } catch (e) { 
+      // Default to light mode on error
+      this.isDarkMode = false;
+      document.body.classList.add('light-mode');
+      updateThemeIcon(this.isDarkMode);
+    }
   }
 
   private async toggleTheme(): Promise<void> {

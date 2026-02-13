@@ -1,4 +1,19 @@
 
+/**
+ * Load Plan Generation
+ * 
+ * Generates step-by-step loading instructions for container loading operations.
+ * Creates both interactive in-app views and printable PDF-ready documents.
+ * 
+ * Features:
+ * - Smart sorting algorithm (heavy first, bottom to top, front to back)
+ * - Contextual loading instructions based on position and stacking
+ * - Category-specific safety tips (fragile, hazardous, etc.)
+ * - Visual snapshots for each step
+ * - Cumulative weight and utilization tracking
+ * - Weight distribution warnings
+ */
+
 import {
   CargoItem,
   ContainerSpec,
@@ -12,23 +27,65 @@ import {
   getRotationLabel,
 } from "./utils";
 
+// ============================================================================
+// LOAD PLAN DATA STRUCTURES
+// ============================================================================
+
+/**
+ * Represents a single step in the loading sequence.
+ * Each step includes the item to load, instructions, and cumulative metrics.
+ */
 export interface LoadStep {
+  /** Step number in the sequence (1-based) */
   stepNumber: number;
+  
+  /** Cargo item to load in this step */
   item: CargoItem;
+  
+  /** Human-readable loading instruction with position details */
   instruction: string;
+  
+  /** Array of safety tips and handling notes */
   tips: string[];
+  
+  /** Total weight of all items loaded up to and including this step */
   cumulativeWeight: number;
+  
+  /** Percentage of container volume used up to this step */
   cumulativeUtilization: number;
+  
+  /** Optional 3D scene snapshot showing the item in place */
   snapshotDataUrl?: string;
 }
 
+// ============================================================================
+// LOAD PLAN GENERATION
+// ============================================================================
+
 /**
- * Analyzes the current load and produces an optimized step-by-step loading plan.
- * Items are sorted by loading priority:
- * 1. Heavy items first (go on the floor)
- * 2. Items at lower Y positions first
- * 3. Items closer to the front (lower X) first
- * 4. Items closer to left wall (lower Z) first
+ * Generates an optimized step-by-step loading plan from current item placement.
+ * 
+ * **Loading Priority Algorithm:**
+ * 1. Lower Y position first (bottom to top)
+ * 2. Heavier items first (for stability)
+ * 3. Front to back (lower X first)
+ * 4. Left to right (lower Z first)
+ * 
+ * This ensures:
+ * - Heavy items on bottom for stability
+ * - Proper stacking order (bottom-up)
+ * - Logical loading sequence for workers
+ * - Weight distribution awareness
+ * 
+ * @param items - Array of cargo items in the container
+ * @param container - Container specifications
+ * @returns Array of LoadStep objects in optimal loading order
+ * 
+ * @example
+ * const plan = generateLoadPlan(items, container);
+ * plan.forEach(step => {
+ *   console.log(`Step ${step.stepNumber}: ${step.instruction}`);
+ * });
  */
 export function generateLoadPlan(
   items: CargoItem[],
@@ -75,6 +132,20 @@ export function generateLoadPlan(
   return steps;
 }
 
+// ============================================================================
+// INSTRUCTION BUILDING HELPERS
+// ============================================================================
+
+/**
+ * Builds a human-readable loading instruction for a specific item.
+ * Determines whether item goes on floor or is stacked, and provides position context.
+ * 
+ * @param item - Item to create instruction for
+ * @param allSorted - All items in loading order
+ * @param index - Index of this item in the sorted array
+ * @param container - Container specifications
+ * @returns Formatted instruction string
+ */
 function buildInstruction(
   item: CargoItem,
   allSorted: CargoItem[],
@@ -123,12 +194,34 @@ function getPositionDescription(item: CargoItem, container: ContainerSpec): stri
   return `${fb}, ${lr}`;
 }
 
+/**
+ * Describes the orientation of an item including rotation state.
+ * 
+ * @param item - Cargo item
+ * @returns Orientation description with dimensions and rotation
+ */
 function getOrientationDesc(item: CargoItem): string {
   const rot = getRotationLabel(item);
   if (!rot) return `Orientation: ${item.lengthIn}"L x ${item.widthIn}"W x ${item.heightIn}"H (standard).`;
   return `Orientation: ${item.lengthIn}"L x ${item.widthIn}"W x ${item.heightIn}"H (rotated ${rot}).`;
 }
 
+/**
+ * Generates contextual safety tips and handling notes for a loading step.
+ * Tips include:
+ * - Category-specific handling requirements
+ * - Weight limit warnings
+ * - Stacking stability notes
+ * - Team size recommendations
+ * - Fragile item warnings
+ * 
+ * @param item - Item being loaded
+ * @param allSorted - All items in loading order
+ * @param index - Current step index
+ * @param container - Container specifications
+ * @param cumulativeWeight - Total weight loaded so far
+ * @returns Array of tip strings
+ */
 function buildTips(
   item: CargoItem,
   allSorted: CargoItem[],
