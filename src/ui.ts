@@ -1339,7 +1339,9 @@ function printManifest(
   const containerVolume = (container.lengthIn * container.widthIn * container.heightIn) / 1728;
 
   const html = `<!DOCTYPE html>
-<html><head><title>A3 Shipping Pro - Loading Manifest</title>
+<html><head>
+<meta charset="UTF-8">
+<title>A3 Shipping Pro - Loading Manifest</title>
 <style>
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
 *{box-sizing:border-box;margin:0;padding:0}body{font-family:'Inter',sans-serif;color:#1a202c;padding:32px;font-size:12px;line-height:1.5;background:white}
