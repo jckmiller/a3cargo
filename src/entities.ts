@@ -249,10 +249,11 @@ export function createItemMesh(item: CargoItem): THREE.Group {
 /**
  * Creates a semi-transparent "ghost" preview of an item during drag operations.
  * Shows where the item will be placed before mouse release.
- * Color changes (green/red) based on placement validity.
+ * The ghost is rendered in blue and starts hidden; the caller shows/hides it
+ * and repositions it each frame during a drag.
  * 
  * @param item - Item to create ghost preview for
- * @returns THREE.Group containing the ghost preview mesh
+ * @returns THREE.Group containing the ghost preview mesh (initially hidden)
  * 
  * @example
  * const ghost = createGhostMesh(draggedItem);

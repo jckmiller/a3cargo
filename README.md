@@ -8,14 +8,16 @@ An interactive 3D visualization tool for planning and visualizing container load
 
 - 🏗️ **Interactive 3D Container Visualization** - View and manipulate cargo items in a realistic 3D container environment
 - 📦 **Multiple Container Types** - Support for various standard shipping container sizes (20ft, 40ft, etc.)
-- 🎯 **Drag & Drop Placement** - Easily position cargo items with intuitive mouse controls
-- 🔄 **Item Rotation** - Rotate items on multiple axes to optimize packing
+- 🎯 **Drag & Drop Placement** - Easily position cargo items with intuitive mouse controls; hold Shift to force floor-level placement
+- 🔄 **Item Rotation** - Rotate items horizontally (Y-axis) or tip them forward/sideways to optimize packing
 - 📊 **Real-time Statistics** - Track weight, volume utilization, and item placement
-- 🏷️ **3D Labels** - Toggle item labels for easy identification
+- 🏷️ **3D Item Tags** - Toggle in-scene text labels showing item name, category, weight, and dimensions
 - 🌓 **Dark/Light Theme** - Switch between themes for comfortable viewing
 - 📋 **Load Plan Generation** - Generate step-by-step loading instructions
 - 📸 **Image Export** - Export your container layout as PNG images
 - 🖨️ **Printable Manifest** - Generate detailed packing manifests
+- 💾 **Save/Load** - Export the current load configuration to a JSON file and reload it later
+- 📚 **Item Library** - Pick from a built-in library of common cargo presets (pallets, boxes, drums, machinery, etc.) and save your own custom presets
 
 ## Getting Started
 
@@ -28,10 +30,10 @@ An interactive 3D visualization tool for planning and visualizing container load
 
 ```bash
 # Clone the repository
-git clone https://github.com/jckmiller/create-an-interactive-3-d-visualization-tool-for-v8-2.git
+git clone https://github.com/jckmiller/a3cargo.git
 
 # Navigate to project directory
-cd create-an-interactive-3-d-visualization-tool-for-v8-2
+cd a3cargo
 
 # Install dependencies
 npm install
@@ -59,20 +61,27 @@ npm run preview
 ## Usage
 
 1. **Select Container Type** - Choose your shipping container size from the dropdown
-2. **Add Cargo Items** - Use the "Add Item" panel to create new cargo items with dimensions and weight
-3. **Position Items** - Drag and drop items within the container, or use manual position controls
-4. **Rotate Items** - Press `R` to rotate selected items, or use the rotation buttons
-5. **Generate Reports** - Export load plans, manifests, or images for documentation
+2. **Add Cargo Items** - Use the "Add Custom Item" panel to create items with custom dimensions and weight, or switch to the **Library** tab to add common cargo presets (pallets, boxes, drums, machinery, and more)
+3. **Position Items** - Drag and drop items within the container; hold Shift while dragging to force floor-level placement
+4. **Rotate Items** - Press `R` to rotate a selected item 90° horizontally, `T` to tip it forward (swaps length and height), or use the toolbar buttons
+5. **Save/Load** - Use the 💾 **Save** button to export your load as a JSON file; use 📂 **Load** to restore a previously saved configuration
+6. **Generate Reports** - Export load plans, manifests, or images for documentation
 
 ### Keyboard Shortcuts
 
-| Key | Action |
-|-----|--------|
-| `R` | Rotate selected item (Y-axis) |
-| `T` | Tip selected item forward |
+| Key / Input | Action |
+|-------------|--------|
+| `Click` | Select item |
+| `Drag` | Move item (auto-stacks) |
+| `Shift+Drag` | Force floor-level placement |
+| `R` | Rotate selected item 90° horizontally (swaps L/W) |
+| `T` | Tip selected item forward (swaps L/H) |
 | `E` | Edit selected item |
-| `L` | Toggle 3D labels |
+| `L` | Toggle 3D item tags |
+| `Dbl-Click` | Show item details |
 | `Delete` | Remove selected item |
+| `Right-Drag` | Rotate camera |
+| `Scroll` | Zoom in/out |
 
 ## Technology Stack
 
