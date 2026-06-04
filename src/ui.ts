@@ -155,13 +155,6 @@ function rebuildAllLibrary(): void {
  * - Three tabs: Cargo, Library, Settings
  * 
  * @param callbacks - Object with callback functions for all user actions
- * 
- * @example
- * buildUI({
- *   onAddItem: (data) => console.log('Adding item:', data),
- *   onSelectItem: (id) => console.log('Selected:', id),
- *   // ... other callbacks
- * });
  */
 export function buildUI(callbacks: UICallbacks): void {
   _globalCallbacks = callbacks;
@@ -235,7 +228,7 @@ export function buildUI(callbacks: UICallbacks): void {
   statsSection.innerHTML = `
     <div class="collapsible-header" data-collapse="stats">
       <div class="panel-section-title" style="margin-bottom:0">Container Stats</div>
-      <span class="collapse-arrow">V</span>
+      <span class="collapse-arrow">▼</span>
     </div>
     <div class="collapsible-body" id="stats-body" style="margin-top:10px">
       <div class="stats-grid">
@@ -270,7 +263,7 @@ export function buildUI(callbacks: UICallbacks): void {
   addSection.innerHTML = `
     <div class="collapsible-header" data-collapse="add-item">
       <div class="panel-section-title" style="margin-bottom:0">Add Custom Item</div>
-      <span class="collapse-arrow">V</span>
+      <span class="collapse-arrow">▼</span>
     </div>
     <div class="collapsible-body" id="add-item-body" style="margin-top:10px">
       <div class="form-row">
@@ -333,7 +326,7 @@ export function buildUI(callbacks: UICallbacks): void {
   itemsList.id = 'items-list';
   itemsList.innerHTML = `
     <div class="empty-state">
-      <div class="icon" style="font-size:38px;opacity:0.4">--</div>
+      <div class="empty-state-icon">📦</div>
       <h4>No items loaded</h4>
       <p>Add cargo items above or pick from<br>the Library tab, then drag them in 3D.</p>
     </div>
@@ -358,7 +351,7 @@ export function buildUI(callbacks: UICallbacks): void {
   saveToLibSection.innerHTML = `
     <div class="collapsible-header" data-collapse="save-preset">
       <div class="panel-section-title" style="margin-bottom:0">Save Custom Preset</div>
-      <span class="collapse-arrow">V</span>
+      <span class="collapse-arrow">▼</span>
     </div>
     <div class="collapsible-body collapsed" id="save-preset-body" style="margin-top:10px">
       <div class="library-custom-form">
@@ -407,7 +400,7 @@ export function buildUI(callbacks: UICallbacks): void {
   searchSection.style.flexShrink = '0';
   searchSection.innerHTML = `
     <div class="library-search-wrap">
-      <input type="text" class="library-search" id="library-search" placeholder="     Search items..." />
+      <input type="text" class="library-search" id="library-search" placeholder="Search items..." />
     </div>
   `;
   libraryContent.appendChild(searchSection);
@@ -432,7 +425,7 @@ export function buildUI(callbacks: UICallbacks): void {
   const settingsSection1 = document.createElement('div');
   settingsSection1.className = 'panel-section';
   settingsSection1.innerHTML = `
-    <div class="panel-section-title">Grid & Snapping</div>
+    <div class="panel-section-title">Grid &amp; Snapping</div>
     <div class="options-row" style="margin-bottom:12px">
       <div class="toggle-container">
         <div class="toggle active" id="toggle-grid"></div>
@@ -463,7 +456,7 @@ export function buildUI(callbacks: UICallbacks): void {
     <div class="options-row" style="margin-bottom:12px">
       <div class="toggle-container">
         <div class="toggle active" id="toggle-labels"></div>
-        <span class="toggle-label">Show 3D Item Tags</span>
+        <span class="toggle-label">Show 3D Item Labels</span>
       </div>
     </div>
     <div class="form-group" style="max-width:200px">
@@ -485,10 +478,10 @@ export function buildUI(callbacks: UICallbacks): void {
       <div><kbd style="background:var(--bg-card);padding:2px 7px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10.5px;border:1px solid var(--border-color)">Click</kbd> Select item</div>
       <div><kbd style="background:var(--bg-card);padding:2px 7px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10.5px;border:1px solid var(--border-color)">Drag</kbd> Move item (auto-stacks)</div>
       <div><kbd style="background:var(--bg-card);padding:2px 7px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10.5px;border:1px solid var(--border-color)">Shift+Drag</kbd> Force floor level</div>
-      <div><kbd style="background:var(--bg-card);padding:2px 7px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10.5px;border:1px solid var(--border-color)">R</kbd> Rotate selected 90 deg (horiz.)</div>
-      <div><kbd style="background:var(--bg-card);padding:2px 7px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10.5px;border:1px solid var(--border-color)">T</kbd> Tip selected forward (L/H swap)</div>
+      <div><kbd style="background:var(--bg-card);padding:2px 7px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10.5px;border:1px solid var(--border-color)">R</kbd> Rotate selected 90°</div>
+      <div><kbd style="background:var(--bg-card);padding:2px 7px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10.5px;border:1px solid var(--border-color)">T</kbd> Tip selected forward</div>
       <div><kbd style="background:var(--bg-card);padding:2px 7px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10.5px;border:1px solid var(--border-color)">E</kbd> Edit selected item</div>
-      <div><kbd style="background:var(--bg-card);padding:2px 7px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10.5px;border:1px solid var(--border-color)">L</kbd> Toggle 3D item tags</div>
+      <div><kbd style="background:var(--bg-card);padding:2px 7px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10.5px;border:1px solid var(--border-color)">L</kbd> Toggle 3D labels</div>
       <div><kbd style="background:var(--bg-card);padding:2px 7px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10.5px;border:1px solid var(--border-color)">Dbl-Click</kbd> Show item details</div>
       <div><kbd style="background:var(--bg-card);padding:2px 7px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10.5px;border:1px solid var(--border-color)">Right-Drag</kbd> Rotate camera</div>
       <div><kbd style="background:var(--bg-card);padding:2px 7px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:10.5px;border:1px solid var(--border-color)">Scroll</kbd> Zoom in/out</div>
@@ -536,8 +529,8 @@ export function buildUI(callbacks: UICallbacks): void {
     <button class="toolbar-btn" id="btn-view-side" title="Side View">Side</button>
     <button class="toolbar-btn" id="btn-view-iso" title="Isometric">3D</button>
     <div class="toolbar-divider"></div>
-    <button class="toolbar-btn active" id="btn-toggle-labels" title="Toggle 3D Item Tags (L)">Tags</button>
-    <button class="toolbar-btn" id="btn-rotate-sel" title="Rotate Selected 90 deg (R)">Rotate</button>
+    <button class="toolbar-btn active" id="btn-toggle-labels" title="Toggle 3D Item Labels (L)">Labels</button>
+    <button class="toolbar-btn" id="btn-rotate-sel" title="Rotate Selected 90° (R)">Rotate</button>
     <button class="toolbar-btn" id="btn-edit-sel" title="Edit Selected Item (E)">Edit</button>
     <div class="toolbar-divider"></div>
     <button class="toolbar-btn" id="btn-save-load" title="Save Load to File">💾 Save</button>
@@ -718,7 +711,7 @@ export function buildUI(callbacks: UICallbacks): void {
 
     const newItem: LibraryItemDef = {
       name,
-      icon: '*',
+      icon: '📦',
       lengthIn,
       widthIn,
       heightIn,
@@ -775,7 +768,7 @@ function renderLibraryItems(search: string, callbacks: UICallbacks): void {
   if (filtered.length === 0) {
     grid.innerHTML = `
       <div class="empty-state" style="padding:30px 0">
-        <div class="icon" style="font-size:38px;opacity:0.4">--</div>
+        <div class="empty-state-icon">🔍</div>
         <h4>No items found</h4>
         <p>Try a different search term.</p>
       </div>
@@ -793,9 +786,9 @@ function renderLibraryItems(search: string, callbacks: UICallbacks): void {
           <div class="library-item-icon">${item.icon}</div>
           <div class="library-item-info">
             <div class="library-item-name">${item.name}</div>
-            <div class="library-item-dims">${item.lengthIn}"x${item.widthIn}"x${item.heightIn}" | ${item.weightLbs} lbs</div>
+            <div class="library-item-dims">${item.lengthIn}"×${item.widthIn}"×${item.heightIn}" | ${item.weightLbs} lbs</div>
           </div>
-          ${isUserItem ? `<button class="item-action-btn danger lib-delete-btn" title="Remove preset" data-lib-del="${item.name}">x</button>` : ''}
+          ${isUserItem ? `<button class="item-action-btn danger lib-delete-btn" title="Remove preset" data-lib-del="${item.name}">×</button>` : ''}
           <button class="library-item-add">+ Add</button>
         </div>
       `;
@@ -812,7 +805,7 @@ function renderLibraryItems(search: string, callbacks: UICallbacks): void {
         const data = (el as HTMLElement).dataset;
         const def: LibraryItemDef = {
           name: data.libName!,
-          icon: data.libIcon || 'B',
+          icon: data.libIcon || '📦',
           lengthIn: parseFloat(data.libL!),
           widthIn: parseFloat(data.libW!),
           heightIn: parseFloat(data.libH!),
@@ -846,7 +839,7 @@ function showLibraryNamingModal(def: LibraryItemDef, callbacks: UICallbacks): vo
     <div class="modal small" style="position:relative">
       <h2>Add ${def.name}</h2>
       <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">
-        ${def.lengthIn}" x ${def.widthIn}" x ${def.heightIn}" | ${def.weightLbs} lbs | <span class="category-badge ${def.category}">${def.category}</span>
+        ${def.lengthIn}" × ${def.widthIn}" × ${def.heightIn}" | ${def.weightLbs} lbs | <span class="category-badge ${def.category}">${def.category}</span>
       </p>
       <div class="form-group" style="margin-bottom:14px">
         <label>Item Name / Label</label>
@@ -922,7 +915,7 @@ export function showEditItemModal(item: CargoItem, callbacks: UICallbacks): void
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;padding:8px 12px;background:var(--bg-card);border:1px solid var(--border-color);border-radius:var(--radius-sm)">
         <span class="item-color" style="background:${item.color};width:12px;height:12px;border-radius:3px;display:inline-block;flex-shrink:0"></span>
         <span style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace">
-          Current: ${item.lengthIn}" x ${item.widthIn}" x ${item.heightIn}" | ${item.weightLbs.toLocaleString()} lbs |
+          Current: ${item.lengthIn}" × ${item.widthIn}" × ${item.heightIn}" | ${item.weightLbs.toLocaleString()} lbs |
           <span class="category-badge ${item.category}">${item.category}</span>
         </span>
       </div>
@@ -1008,14 +1001,14 @@ export function showEditItemModal(item: CargoItem, callbacks: UICallbacks): void
     if (!l || l <= 0) msgs.push('Length must be > 0');
     if (!w || w <= 0) msgs.push('Width must be > 0');
     if (!h || h <= 0) msgs.push('Height must be > 0');
-    if (isNaN(wt) || wt < 0) msgs.push('Weight must be >= 0');
+    if (isNaN(wt) || wt < 0) msgs.push('Weight must be ≥ 0');
 
     if (msgs.length > 0) {
-      validationMsg.innerHTML = `<span style="font-size:11px;color:var(--accent-red)">Error: ${msgs.join(' | ')}</span>`;
+      validationMsg.innerHTML = `<span style="font-size:11px;color:var(--accent-red)">${msgs.join(' · ')}</span>`;
       return false;
     }
 
-    validationMsg.innerHTML = `<span style="font-size:11px;color:var(--accent-green)">OK: Looks good</span>`;
+    validationMsg.innerHTML = `<span style="font-size:11px;color:var(--accent-green)">✓ Looks good</span>`;
     return true;
   };
 
@@ -1040,7 +1033,7 @@ export function showEditItemModal(item: CargoItem, callbacks: UICallbacks): void
       return;
     }
     if (isNaN(weightLbs) || weightLbs < 0) {
-      showToast('Please enter a valid weight (>= 0)', 'error');
+      showToast('Please enter a valid weight (≥ 0)', 'error');
       return;
     }
 
@@ -1100,7 +1093,7 @@ export function updateItemsList(
   if (items.length === 0) {
     list.innerHTML = `
       <div class="empty-state">
-        <div class="icon" style="font-size:38px;opacity:0.4">--</div>
+        <div class="empty-state-icon">📦</div>
         <h4>No items loaded</h4>
         <p>Add cargo items above or pick from<br>the Library tab, then drag them in 3D.</p>
       </div>
@@ -1120,15 +1113,15 @@ export function updateItemsList(
           ${rotLabel ? `<span class="rotation-badge">${rotLabel}</span>` : ''}
         </span>
         <div class="item-actions">
-          <button class="item-action-btn" data-action="edit" data-item-id="${item.id}" title="Edit item (E)">E</button>
-          <button class="item-action-btn" data-action="visibility" data-item-id="${item.id}" title="${item.visible ? 'Hide' : 'Show'}">${item.visible ? 'V' : 'H'}</button>
-          <button class="item-action-btn danger" data-action="delete" data-item-id="${item.id}" title="Delete">x</button>
+          <button class="item-action-btn" data-action="edit" data-item-id="${item.id}" title="Edit item (E)">✎</button>
+          <button class="item-action-btn" data-action="visibility" data-item-id="${item.id}" title="${item.visible ? 'Hide' : 'Show'}">${item.visible ? '●' : '○'}</button>
+          <button class="item-action-btn danger" data-action="delete" data-item-id="${item.id}" title="Delete">×</button>
         </div>
       </div>
       <div class="item-details">
         <span>${formatDimensions(item.lengthIn, item.widthIn, item.heightIn)}</span>
         <span>${item.weightLbs.toLocaleString()} lbs</span>
-        <span>Y:${item.posY.toFixed(0)}"</span>
+        <span>Y: ${item.posY.toFixed(0)}"</span>
       </div>
     </div>
   `;}).join('');
@@ -1200,7 +1193,7 @@ export function showItemInfo(item: CargoItem | null, gridSize: number): void {
   overlay.classList.add('visible');
   overlay.innerHTML = `
     <div class="info-card" style="position:relative">
-      <button class="close-btn" id="info-close">x</button>
+      <button class="close-btn" id="info-close">×</button>
       <h3>
         <span class="item-color" style="background:${item.color};width:12px;height:12px;border-radius:3px;display:inline-block"></span>
         ${item.label}
@@ -1208,29 +1201,29 @@ export function showItemInfo(item: CargoItem | null, gridSize: number): void {
       <div class="info-row"><span class="info-label">Category</span><span class="info-value"><span class="category-badge ${item.category}">${item.category}</span></span></div>
       <div class="info-row"><span class="info-label">Dimensions</span><span class="info-value">${formatDimensions(item.lengthIn, item.widthIn, item.heightIn)}</span></div>
       <div class="info-row"><span class="info-label">Original</span><span class="info-value">${formatDimensions(item.origLengthIn, item.origWidthIn, item.origHeightIn)}</span></div>
-      <div class="info-row"><span class="info-label">Volume</span><span class="info-value">${((item.lengthIn * item.widthIn * item.heightIn) / 1728).toFixed(1)} ft3</span></div>
+      <div class="info-row"><span class="info-label">Volume</span><span class="info-value">${((item.lengthIn * item.widthIn * item.heightIn) / 1728).toFixed(1)} ft³</span></div>
       <div class="info-row"><span class="info-label">Weight</span><span class="info-value">${item.weightLbs.toLocaleString()} lbs</span></div>
       <div class="info-row"><span class="info-label">Position X</span><span class="info-value">${item.posX.toFixed(0)}"</span></div>
       <div class="info-row"><span class="info-label">Position Y</span><span class="info-value">${item.posY.toFixed(0)}"</span></div>
       <div class="info-row"><span class="info-label">Position Z</span><span class="info-value">${item.posZ.toFixed(0)}"</span></div>
-      <div class="info-row"><span class="info-label">Rotation</span><span class="info-value">${rotLabel || '0 deg'} ${item.rotationY > 0 ? `<span class="rotation-badge">${rotLabel}</span>` : ''}</span></div>
+      <div class="info-row"><span class="info-label">Rotation</span><span class="info-value">${rotLabel || '0°'} ${item.rotationY > 0 ? `<span class="rotation-badge">${rotLabel}</span>` : ''}</span></div>
       
       <div style="margin-top:10px">
         <button class="btn btn-sm btn-primary btn-full" id="info-edit-btn" style="margin-bottom:8px">Edit Properties</button>
       </div>
 
       <div style="display:flex;gap:5px;flex-wrap:wrap">
-        <button class="btn btn-sm btn-secondary" data-move="x-" title="Move -X">&lt; X</button>
-        <button class="btn btn-sm btn-secondary" data-move="x+" title="Move +X">X &gt;</button>
-        <button class="btn btn-sm btn-secondary" data-move="z-" title="Move -Z">&lt; Z</button>
-        <button class="btn btn-sm btn-secondary" data-move="z+" title="Move +Z">Z &gt;</button>
-        <button class="btn btn-sm btn-secondary" data-move="y+" title="Move Up">^ Y</button>
-        <button class="btn btn-sm btn-secondary" data-move="y-" title="Move Down">Y v</button>
+        <button class="btn btn-sm btn-secondary" data-move="x-" title="Move toward front">← X</button>
+        <button class="btn btn-sm btn-secondary" data-move="x+" title="Move toward back">X →</button>
+        <button class="btn btn-sm btn-secondary" data-move="z-" title="Move left">← Z</button>
+        <button class="btn btn-sm btn-secondary" data-move="z+" title="Move right">Z →</button>
+        <button class="btn btn-sm btn-secondary" data-move="y+" title="Move up">↑ Y</button>
+        <button class="btn btn-sm btn-secondary" data-move="y-" title="Move down">↓ Y</button>
       </div>
       <div class="rotate-buttons">
-        <button class="rotate-btn" data-rotate="y" title="Rotate 90 deg horizontal">Rotate 90</button>
-        <button class="rotate-btn" data-rotate="tipForward" title="Tip forward (L/H swap)">Tip Fwd</button>
-        <button class="rotate-btn" data-rotate="tipSide" title="Tip sideways (W/H swap)">Tip Side</button>
+        <button class="rotate-btn" data-rotate="y" title="Rotate 90° horizontally">Rotate 90°</button>
+        <button class="rotate-btn" data-rotate="tipForward" title="Tip forward (L/H swap)">Tip Forward</button>
+        <button class="rotate-btn" data-rotate="tipSide" title="Tip sideways (W/H swap)">Tip Sideways</button>
       </div>
     </div>
   `;
@@ -1292,7 +1285,6 @@ export function showManifestModal(
   const totalVolume = items.reduce((s, i) => s + (i.lengthIn * i.widthIn * i.heightIn) / 1728, 0);
   const containerVolume = (container.lengthIn * container.widthIn * container.heightIn) / 1728;
 
-  // Build snapshot section HTML (1 or 2 per row depending on count)
   const snapshotSectionHtml = snapshots.length > 0 ? `
     <h3>3D View Snapshots</h3>
     <div style="display:grid;grid-template-columns:${snapshots.length === 1 ? '1fr' : '1fr 1fr'};gap:12px;margin-bottom:18px">
@@ -1309,14 +1301,17 @@ export function showManifestModal(
     </div>
   ` : '';
 
+  const warnFB = Math.abs(dist.front - dist.back) > 20;
+  const warnLR = Math.abs(dist.left - dist.right) > 20;
+
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
     <div class="modal" style="position:relative" id="manifest-modal-content">
-      <h2>Loading Manifest -- A3 Shipping Pro</h2>
+      <h2>Loading Manifest — A3 Shipping Pro</h2>
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:18px">
         Container: <strong style="color:var(--text-bright)">${container.label}</strong> |
-        Internal: ${container.lengthIn}" x ${container.widthIn}" x ${container.heightIn}" |
+        Internal: ${container.lengthIn}" × ${container.widthIn}" × ${container.heightIn}" |
         Generated: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}
       </div>
 
@@ -1338,7 +1333,7 @@ export function showManifestModal(
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px">
         <div class="stat-card">
           <div class="stat-label">Volume Used</div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-bright)">${totalVolume.toFixed(1)} ft3 / ${containerVolume.toFixed(1)} ft3</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-bright)">${totalVolume.toFixed(1)} ft³ / ${containerVolume.toFixed(1)} ft³</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Weight Capacity</div>
@@ -1347,15 +1342,15 @@ export function showManifestModal(
       </div>
 
       <div class="stat-card" style="margin-bottom:18px">
-        <div class="stat-label">Weight Distribution (Front/Back: ${dist.front.toFixed(0)}% / ${dist.back.toFixed(0)}%  |  Left/Right: ${dist.left.toFixed(0)}% / ${dist.right.toFixed(0)}%)</div>
+        <div class="stat-label">Weight Distribution (Front/Back: ${dist.front.toFixed(0)}% / ${dist.back.toFixed(0)}% &nbsp;|&nbsp; Left/Right: ${dist.left.toFixed(0)}% / ${dist.right.toFixed(0)}%)</div>
         <div class="weight-dist">
           <div class="weight-dist-segment" style="flex:${dist.front};background:var(--accent-cyan)" title="Front: ${dist.front.toFixed(1)}%"></div>
           <div class="weight-dist-segment" style="flex:${dist.back};background:var(--accent-blue)" title="Back: ${dist.back.toFixed(1)}%"></div>
         </div>
         <div style="margin-top:5px;font-size:10.5px;color:var(--text-muted)">
-          ${Math.abs(dist.front - dist.back) > 20 ? 'WARNING: Uneven front/back weight distribution' : 'OK: Balanced front/back'}
-          |
-          ${Math.abs(dist.left - dist.right) > 20 ? 'WARNING: Uneven left/right distribution' : 'OK: Balanced left/right'}
+          ${warnFB ? '⚠ Uneven front/back weight distribution' : '✓ Balanced front/back'}
+          &nbsp;|&nbsp;
+          ${warnLR ? '⚠ Uneven left/right weight distribution' : '✓ Balanced left/right'}
         </div>
       </div>
 
@@ -1369,9 +1364,9 @@ export function showManifestModal(
               <th>#</th>
               <th>Label</th>
               <th>Category</th>
-              <th>Dimensions (LxWxH)</th>
+              <th>Dimensions (L×W×H)</th>
               <th>Weight</th>
-              <th>Position (X,Y,Z)</th>
+              <th>Position (X, Y, Z)</th>
               <th>Rotation</th>
               <th>Volume</th>
             </tr>
@@ -1382,11 +1377,11 @@ export function showManifestModal(
                 <td>${i + 1}</td>
                 <td style="color:var(--text-bright);font-family:'Inter',sans-serif;font-weight:600">${item.label}</td>
                 <td><span class="category-badge ${item.category}">${item.category}</span></td>
-                <td>${item.lengthIn}" x ${item.widthIn}" x ${item.heightIn}"</td>
+                <td>${item.lengthIn}" × ${item.widthIn}" × ${item.heightIn}"</td>
                 <td>${item.weightLbs.toLocaleString()} lbs</td>
                 <td>${item.posX.toFixed(0)}", ${item.posY.toFixed(0)}", ${item.posZ.toFixed(0)}"</td>
-                <td>${getRotationLabel(item) || '0 deg'}</td>
-                <td>${((item.lengthIn * item.widthIn * item.heightIn) / 1728).toFixed(1)} ft3</td>
+                <td>${getRotationLabel(item) || '0°'}</td>
+                <td>${((item.lengthIn * item.widthIn * item.heightIn) / 1728).toFixed(1)} ft³</td>
               </tr>
             `).join('')}
           </tbody>
@@ -1442,9 +1437,6 @@ function printManifest(
   const totalVolume = items.reduce((s, i) => s + (i.lengthIn * i.widthIn * i.heightIn) / 1728, 0);
   const containerVolume = (container.lengthIn * container.widthIn * container.heightIn) / 1728;
 
-  // Build snapshot HTML for the printable page.
-  // Each image is sized to exactly 1200×600 CSS pixels so it
-  // is consistent on paper regardless of print settings.
   const snapshotHtmlBlocks = snapshots.length > 0
     ? snapshots.map(s => `
         <div class="snapshot">
@@ -1457,7 +1449,7 @@ function printManifest(
   const html = `<!DOCTYPE html>
 <html><head>
 <meta charset="UTF-8">
-<title>A3 Shipping Pro - Loading Manifest</title>
+<title>A3 Shipping Pro \u2014 Loading Manifest</title>
 <style>
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
 *{box-sizing:border-box;margin:0;padding:0}body{font-family:'Inter',sans-serif;color:#1a202c;padding:32px;font-size:12px;line-height:1.5;background:white}
@@ -1473,14 +1465,14 @@ td{padding:7px 10px;border-bottom:1px solid #eee;font-family:'JetBrains Mono',mo
 .snapshots-heading{font-size:14px;font-weight:700;color:#333;margin-bottom:10px}
 </style></head><body>
 <div class="header"><div><h1>A3 Shipping Pro</h1><div class="subtitle">Container Loading Manifest</div></div>
-<div class="date">Container: <strong>${container.label}</strong><br>${container.lengthIn}" x ${container.widthIn}" x ${container.heightIn}"<br>${new Date().toLocaleString()}</div></div>
-<p>Utilization: ${utilization.toFixed(1)}% | Weight: ${totalWeight.toLocaleString()} / ${container.maxWeightLbs.toLocaleString()} lbs | Items: ${items.length}</p>
+<div class="date">Container: <strong>${container.label}</strong><br>${container.lengthIn}" &times; ${container.widthIn}" &times; ${container.heightIn}"<br>${new Date().toLocaleString()}</div></div>
+<p>Utilization: ${utilization.toFixed(1)}% &nbsp;|&nbsp; Weight: ${totalWeight.toLocaleString()} / ${container.maxWeightLbs.toLocaleString()} lbs &nbsp;|&nbsp; Items: ${items.length}</p>
 <br>
 ${snapshotHtmlBlocks ? `<div class="snapshots-section"><div class="snapshots-heading">3D View Snapshots</div>${snapshotHtmlBlocks}</div>` : ''}
 <table><thead><tr><th>#</th><th>Label</th><th>Category</th><th>Dimensions</th><th>Weight</th><th>Position</th><th>Volume</th></tr></thead><tbody>
-${items.map((item, i) => `<tr><td>${i+1}</td><td style="font-family:'Inter',sans-serif;font-weight:600">${item.label}</td><td>${item.category}</td><td>${item.lengthIn}" x ${item.widthIn}" x ${item.heightIn}"</td><td>${item.weightLbs.toLocaleString()} lbs</td><td>${item.posX.toFixed(0)}", ${item.posY.toFixed(0)}", ${item.posZ.toFixed(0)}"</td><td>${((item.lengthIn*item.widthIn*item.heightIn)/1728).toFixed(1)} ft3</td></tr>`).join('')}
+${items.map((item, i) => `<tr><td>${i+1}</td><td style="font-family:'Inter',sans-serif;font-weight:600">${item.label}</td><td>${item.category}</td><td>${item.lengthIn}" &times; ${item.widthIn}" &times; ${item.heightIn}"</td><td>${item.weightLbs.toLocaleString()} lbs</td><td>${item.posX.toFixed(0)}", ${item.posY.toFixed(0)}", ${item.posZ.toFixed(0)}"</td><td>${((item.lengthIn*item.widthIn*item.heightIn)/1728).toFixed(1)} ft&#179;</td></tr>`).join('')}
 </tbody></table>
-<div class="footer">A3 Shipping Pro -- ${new Date().toLocaleString()}</div></body></html>`;
+<div class="footer">A3 Shipping Pro &mdash; ${new Date().toLocaleString()}</div></body></html>`;
 
   try {
     const blob = new Blob([html], { type: 'text/html' });
@@ -1490,10 +1482,10 @@ ${items.map((item, i) => `<tr><td>${i+1}</td><td style="font-family:'Inter',sans
       setTimeout(() => URL.revokeObjectURL(url), 60000);
       showToast('Print window opened', 'success');
     } else {
-      downloadFile(html, 'text/html', `a3-manifest-${Date.now()}.html`);
+      downloadFile(html, 'text/html', `a3-manifest-${formatDateForFilename()}.html`);
     }
   } catch (e) {
-    downloadFile(html, 'text/html', `a3-manifest-${Date.now()}.html`);
+    downloadFile(html, 'text/html', `a3-manifest-${formatDateForFilename()}.html`);
   }
 }
 
@@ -1512,6 +1504,15 @@ function downloadFile(content: string, type: string, filename: string): void {
   } catch (e) {
     showToast('Could not generate file', 'error');
   }
+}
+
+/** Returns a readable date string suitable for use in filenames, e.g. "2026-06-04". */
+export function formatDateForFilename(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function generateManifestText(
@@ -1549,7 +1550,8 @@ export function showToast(message: string, type: 'warning' | 'error' | 'success'
     toast.style.borderColor = 'rgba(52,211,153,0.3)';
     toast.style.borderLeftColor = 'var(--accent-green)';
   }
-  const prefix = type === 'error' ? 'ERROR: ' : type === 'success' ? 'OK: ' : 'NOTE: ';
+  // Use subtle Unicode prefix symbols instead of verbose text labels
+  const prefix = type === 'error' ? '✕ ' : type === 'success' ? '✓ ' : '⚠ ';
   toast.textContent = prefix + message;
   container.appendChild(toast);
 
@@ -1573,7 +1575,6 @@ export function showValidationWarnings(result: ValidationResult): void {
 export function updateThemeIcon(isDark: boolean): void {
   const btn = document.getElementById('theme-toggle');
   if (btn) {
-    // Show sun icon in dark mode (to switch to light), moon icon in light mode (to switch to dark)
     btn.textContent = isDark ? '☀️' : '🌙';
     btn.title = isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode';
   }

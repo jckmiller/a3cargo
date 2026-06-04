@@ -62,6 +62,7 @@ import {
   getNextColor,
   updateThemeIcon,
   updateLabelsToggleUI,
+  formatDateForFilename,
   UICallbacks,
 } from "./ui";
 import { ItemLabelManager } from "./labels";
@@ -636,7 +637,7 @@ export class ContainerVizApp {
   private toggleLabels(): void {
     const isVisible = this.labelManager.toggle();
     updateLabelsToggleUI(isVisible);
-    showToast(isVisible ? '3D item tags enabled' : '3D item tags disabled', 'success');
+    showToast(isVisible ? '3D item labels enabled' : '3D item labels disabled', 'success');
   }
 
   private changeColorMode(mode: ColorMode): void {
@@ -756,7 +757,7 @@ export class ContainerVizApp {
           item.posX = savedX;
           item.posY = savedY;
           item.posZ = savedZ;
-          showToast('Cannot resize -- new dimensions cause overlap or exceed container', 'error');
+          showToast('Cannot resize — new dimensions would cause overlap or exceed container bounds', 'error');
           return;
         }
       }
@@ -845,7 +846,7 @@ export class ContainerVizApp {
       item.posY = oldPosY;
       item.posZ = oldPosZ;
       item.rotationY = oldRot;
-      showToast('Cannot rotate -- would cause overlap or exceed container', 'error');
+      showToast('Cannot rotate — would cause overlap or exceed container bounds', 'error');
       return;
     }
 
@@ -858,7 +859,7 @@ export class ContainerVizApp {
     this.refreshUI();
     
     const rotDeg = item.rotationY * 90;
-    showToast(`Rotated "${item.label}" -> ${item.lengthIn}"x${item.widthIn}"x${item.heightIn}" (${rotDeg} deg)`, 'success');
+    showToast(`Rotated "${item.label}" → ${item.lengthIn}"×${item.widthIn}"×${item.heightIn}" (${rotDeg}°)`, 'success');
   }
 
   private moveItem(id: string, axis: 'x' | 'y' | 'z', delta: number): void {
@@ -937,7 +938,7 @@ export class ContainerVizApp {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `a3-load-${Date.now()}.json`;
+    link.download = `a3-load-${formatDateForFilename()}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1090,7 +1091,7 @@ export class ContainerVizApp {
     this.renderer.render(this.scene, this.camera);
     const dataUrl = this.renderer.domElement.toDataURL('image/png');
     const link = document.createElement('a');
-    link.download = `a3-shipping-${Date.now()}.png`;
+    link.download = `a3-shipping-${formatDateForFilename()}.png`;
     link.href = dataUrl;
     link.click();
     showToast('Image exported successfully!', 'success');
@@ -1545,7 +1546,7 @@ export class ContainerVizApp {
         } else {
           const link = document.createElement('a');
           link.href = url;
-          link.download = `a3-loadplan-${Date.now()}.html`;
+          link.download = `a3-loadplan-${formatDateForFilename()}.html`;
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
@@ -1883,7 +1884,7 @@ export class ContainerVizApp {
             this.dragItem.posX = this.dragStartPos.x;
             this.dragItem.posY = this.dragStartPos.y;
             this.dragItem.posZ = this.dragStartPos.z;
-            showToast('Could not place item there -- reverted to original position', 'warning');
+            showToast('Could not place item there — position reverted', 'warning');
           }
         } else {
           this.dragItem.posX = this.dragStartPos.x;

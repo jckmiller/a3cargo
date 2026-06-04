@@ -250,16 +250,16 @@ function buildTips(
   const tips: string[] = [];
 
   if (item.category === 'fragile') {
-    tips.push('FRAGILE -- Handle with care. Avoid placing heavy items on top.');
+    tips.push('FRAGILE: Handle with care. Avoid placing heavy items on top.');
   }
   if (item.category === 'hazardous') {
-    tips.push('HAZARDOUS -- Follow IMDG/DOT regulations. Keep separation distances.');
+    tips.push('HAZARDOUS: Follow IMDG/DOT regulations. Maintain required separation distances.');
   }
   if (item.category === 'perishable') {
-    tips.push('PERISHABLE -- Ensure cold chain maintained. Load last if possible.');
+    tips.push('PERISHABLE: Ensure cold chain is maintained. Load last if possible.');
   }
   if (item.category === 'heavy') {
-    tips.push('HEAVY -- Use forklift or mechanical lift. Ensure floor-level placement.');
+    tips.push('HEAVY: Use forklift or mechanical lift. Ensure floor-level placement.');
   }
 
   if (cumulativeWeight > container.maxWeightLbs * 0.9) {
@@ -273,7 +273,7 @@ function buildTips(
   const volRatio = (item.lengthIn * item.widthIn * item.heightIn) / 
                    (container.lengthIn * container.widthIn * container.heightIn);
   if (volRatio > 0.08) {
-    tips.push('Large item -- may need two people or forklift to position.');
+    tips.push('Large item — may require two people or a forklift to position.');
   }
 
   const above = allSorted.slice(index + 1).filter(other => {
@@ -281,7 +281,7 @@ function buildTips(
       Math.abs(item.posY + item.heightIn - other.posY) < 2;
   });
   if (above.length > 0 && item.category !== 'fragile') {
-    tips.push('Fragile item(s) will be placed on top -- ensure surface is flat.');
+    tips.push('Fragile item(s) will be placed on top — ensure this surface is flat and stable.');
   }
 
   return tips;
@@ -313,7 +313,7 @@ export function generateLoadPlanHTML(
   if (steps.length === 0) {
     return `
       <div class="empty-state" style="padding:40px 20px">
-        <div class="icon" style="font-size:38px;opacity:0.4">--</div>
+        <div class="icon" style="font-size:38px;opacity:0.4">📋</div>
         <h4>No items to plan</h4>
         <p>Add items to the container first, then generate a load plan.</p>
       </div>
@@ -391,7 +391,7 @@ export function generateLoadPlanHTML(
             ${step.snapshotDataUrl ? 
               `<img class="step-snapshot" src="${step.snapshotDataUrl}" alt="Step ${step.stepNumber}" />` :
               `<div class="step-snapshot-placeholder" data-step-idx="${step.stepNumber - 1}">
-                <span>--</span>
+                <span style="font-size:18px">📷</span>
                 <small>Loading...</small>
               </div>`
             }
@@ -456,26 +456,26 @@ function getLoadingStrategy(items: CargoItem[], container: ContainerSpec): strin
   points.push(`<strong>${floorItems.length}</strong> items on the floor level, <strong>${stackedItems.length}</strong> stacked above.`);
 
   if (heavyItems.length > 0) {
-    points.push(`<strong>${heavyItems.length}</strong> heavy item(s) -- load these first to establish a stable base.`);
+    points.push(`<strong>${heavyItems.length}</strong> heavy item(s) — load these first to establish a stable base.`);
   }
 
   if (fragileItems.length > 0) {
-    points.push(`<strong>${fragileItems.length}</strong> fragile item(s) -- place on top or protected areas. Avoid stacking heavy items above.`);
+    points.push(`<strong>${fragileItems.length}</strong> fragile item(s) — place on top or in protected areas. Avoid stacking heavy items above.`);
   }
 
   if (hazItems.length > 0) {
-    points.push(`<strong>${hazItems.length}</strong> hazardous item(s) -- follow IMDG/DOT separation requirements.`);
+    points.push(`<strong>${hazItems.length}</strong> hazardous item(s) — follow IMDG/DOT separation requirements.`);
   }
 
   if (perishItems.length > 0) {
-    points.push(`<strong>${perishItems.length}</strong> perishable item(s) -- load last for first-out access. Maintain cold chain.`);
+    points.push(`<strong>${perishItems.length}</strong> perishable item(s) — load last for first-out access. Maintain cold chain.`);
   }
 
   const dist = getWeightDistribution(items, container);
   if (Math.abs(dist.front - dist.back) > 20) {
-    points.push(`WARNING: Weight is unevenly distributed front/back (${dist.front.toFixed(0)}%/${dist.back.toFixed(0)}%). Consider redistributing.`);
+    points.push(`⚠ Weight is unevenly distributed front/back (${dist.front.toFixed(0)}%/${dist.back.toFixed(0)}%). Consider redistributing.`);
   } else {
-    points.push(`OK: Weight distribution is balanced (Front: ${dist.front.toFixed(0)}%, Back: ${dist.back.toFixed(0)}%).`);
+    points.push(`✓ Weight distribution is balanced (Front: ${dist.front.toFixed(0)}%, Back: ${dist.back.toFixed(0)}%).`);
   }
 
   return `<ul>${points.map(p => `<li>${p}</li>`).join('')}</ul>`;
@@ -595,7 +595,7 @@ export function generatePrintableLoadPlan(
     </div>
   `;}).join('')}
 
-  <div class="footer">A3 Shipping Pro -- Load Plan -- ${new Date().toLocaleString()}</div>
+  <div class="footer">A3 Shipping Pro &mdash; Step-by-Step Load Plan &mdash; ${new Date().toLocaleString()}</div>
 </body>
 </html>`;
 }
@@ -616,16 +616,16 @@ function getLoadingStrategyPrintable(items: CargoItem[], container: ContainerSpe
   points.push(`<strong>${floorItems.length}</strong> items on the floor level, <strong>${stackedItems.length}</strong> stacked above.`);
 
   if (heavyItems.length > 0) {
-    points.push(`<strong>${heavyItems.length}</strong> heavy item(s) -- load these first to establish a stable base.`);
+    points.push(`<strong>${heavyItems.length}</strong> heavy item(s) &mdash; load these first to establish a stable base.`);
   }
   if (fragileItems.length > 0) {
-    points.push(`<strong>${fragileItems.length}</strong> fragile item(s) -- place on top or protected areas. Avoid stacking heavy items above.`);
+    points.push(`<strong>${fragileItems.length}</strong> fragile item(s) &mdash; place on top or protected areas. Avoid stacking heavy items above.`);
   }
   if (hazItems.length > 0) {
-    points.push(`<strong>${hazItems.length}</strong> hazardous item(s) -- follow IMDG/DOT separation requirements.`);
+    points.push(`<strong>${hazItems.length}</strong> hazardous item(s) &mdash; follow IMDG/DOT separation requirements.`);
   }
   if (perishItems.length > 0) {
-    points.push(`<strong>${perishItems.length}</strong> perishable item(s) -- load last for first-out access. Maintain cold chain.`);
+    points.push(`<strong>${perishItems.length}</strong> perishable item(s) &mdash; load last for first-out access. Maintain cold chain.`);
   }
 
   const dist = getWeightDistribution(items, container);
