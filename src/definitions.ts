@@ -92,6 +92,11 @@ export const CONTAINER_SPECS: Record<string, ContainerSpec> = {
 export type ItemCategory = 'general' | 'fragile' | 'heavy' | 'hazardous' | 'perishable';
 
 /**
+ * Stacking rule — either allow all categories, allow none, or allow a specific subset.
+ */
+export type StackingRule = 'all' | 'none' | ItemCategory[];
+
+/**
  * Represents a single cargo item in the container.
  * Tracks both current and original dimensions to support rotation operations.
  */
@@ -143,6 +148,22 @@ export interface CargoItem {
   
   /** Rotation state: 0=0°, 1=90°, 2=180°, 3=270° */
   rotationY: number;
+
+  /**
+   * Which item categories are allowed to be stacked ON TOP of this item.
+   * - 'all'  → any item may stack on top (default)
+   * - 'none' → nothing may be placed on top of this item
+   * - ItemCategory[] → only items whose category is in the list may stack on top
+   */
+  acceptsOnTop: StackingRule;
+
+  /**
+   * Which item categories this item is allowed to sit on top of.
+   * - 'all'  → this item may be placed on any item (default)
+   * - 'none' → this item may only be placed on the floor
+   * - ItemCategory[] → this item may only be stacked on items whose category is in the list
+   */
+  canStackOn: StackingRule;
 }
 
 // ============================================================================
@@ -245,6 +266,12 @@ export interface LibraryItemDef {
   
   /** Grouping for organization in UI (e.g., 'Pallets', 'Boxes') */
   group: string;
+
+  /** Which categories may stack on top of this item (optional, defaults to 'all') */
+  acceptsOnTop?: StackingRule;
+
+  /** Which categories this item may be stacked on top of (optional, defaults to 'all') */
+  canStackOn?: StackingRule;
 }
 
 /**

@@ -10,7 +10,7 @@
  * - Formatting helpers
  */
 
-import { CargoItem, ContainerSpec, SCALE_FACTOR, DEFAULT_GRID_SIZE } from "./definitions";
+import { CargoItem, ContainerSpec, ItemCategory, StackingRule, SCALE_FACTOR, DEFAULT_GRID_SIZE } from "./definitions";
 
 // ============================================================================
 // COORDINATE AND GRID UTILITIES
@@ -68,6 +68,34 @@ export function unitsToInches(units: number): number {
  */
 export function generateId(): string {
   return 'item_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 5);
+}
+
+// ============================================================================
+// STACKING RULE HELPERS
+// ============================================================================
+
+/**
+ * Returns true when a stacking rule permits the given category.
+ *
+ * @param rule     - The StackingRule to evaluate
+ * @param category - The ItemCategory being tested
+ */
+export function stackingRuleAllows(rule: StackingRule, category: ItemCategory): boolean {
+  if (rule === 'all') return true;
+  if (rule === 'none') return false;
+  return (rule as ItemCategory[]).includes(category);
+}
+
+/**
+ * Returns a human-readable label for a StackingRule value.
+ * Used for display in UI and error messages.
+ */
+export function stackingRuleLabel(rule: StackingRule): string {
+  if (rule === 'all') return 'All categories';
+  if (rule === 'none') return 'Nothing (floor only)';
+  return (rule as ItemCategory[])
+    .map(c => c.charAt(0).toUpperCase() + c.slice(1))
+    .join(', ') || 'None selected';
 }
 
 // ============================================================================
@@ -142,6 +170,41 @@ export function validatePlacement(
     const supported = isSupported(item, allItems);
     if (!supported) {
       result.warnings.push(`"${item.label}" is not fully supported (floating)`);
+    }
+  }
+
+  // Check stacking category rules when the item is elevated above the floor
+  if (item.posY > 0.5) {
+    for (const other of allItems) {
+      if (other.id === item.id) continue;
+
+      // Only check items that are directly below (top surface within 1" of item's bottom)
+      if (Math.abs(other.posY + other.heightIn - item.posY) >= 1) continue;
+
+      // Horizontal overlap required to count as "below"
+      const overlapX = Math.min(item.posX + item.lengthIn, other.posX + other.lengthIn) -
+                       Math.max(item.posX, other.posX);
+      const overlapZ = Math.min(item.posZ + item.widthIn, other.posZ + other.widthIn) -
+                       Math.max(item.posZ, other.posZ);
+      if (overlapX <= 0.5 || overlapZ <= 0.5) continue;
+
+      // Rule 1: Does the item below allow this item's category on top?
+      const belowAccepts = other.acceptsOnTop ?? 'all';
+      if (!stackingRuleAllows(belowAccepts, item.category)) {
+        result.errors.push(
+          `"${other.label}" does not allow ${item.category} items to be stacked on top of it`
+        );
+        result.valid = false;
+      }
+
+      // Rule 2: Does this item allow being stacked on the category below?
+      const itemCanStackOn = item.canStackOn ?? 'all';
+      if (!stackingRuleAllows(itemCanStackOn, other.category)) {
+        result.errors.push(
+          `"${item.label}" cannot be stacked on ${other.category} items (stacked on "${other.label}")`
+        );
+        result.valid = false;
+      }
     }
   }
 
@@ -263,6 +326,12 @@ export function findStackingY(
     // If there's significant horizontal overlap, consider stacking
     if (overlapX > 0.5 && overlapZ > 0.5) {
       const topY = other.posY + other.heightIn;
+
+      // Skip if stacking rules forbid placing item on top of 'other'
+      const belowAccepts = other.acceptsOnTop ?? 'all';
+      const itemCanStackOn = item.canStackOn ?? 'all';
+      if (!stackingRuleAllows(belowAccepts, item.category)) continue;
+      if (!stackingRuleAllows(itemCanStackOn, other.category)) continue;
       
       // Use this level if it's higher and item will fit
       if (topY > bestY && topY + item.heightIn <= container.heightIn + 0.5) {

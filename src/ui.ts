@@ -28,6 +28,7 @@ import {
   DEFAULT_LIBRARY,
   GRID_SIZES,
   DEFAULT_GRID_SIZE,
+  StackingRule,
 } from "./definitions";
 import {
   calculateUtilization,
@@ -37,6 +38,7 @@ import {
   getWeightColor,
   getRotationLabel,
   ValidationResult,
+  stackingRuleLabel,
 } from "./utils";
 import { persistence } from "./libs/persistence";
 
@@ -70,7 +72,7 @@ export interface UICallbacks {
   onRotateItem: (id: string, rotationType: 'y' | 'tipForward' | 'tipSide') => void;
   onToggleTheme: () => void;
   onToggleLabels: () => void;
-  onEditItem: (id: string, changes: Partial<Pick<CargoItem, 'label' | 'lengthIn' | 'widthIn' | 'heightIn' | 'weightLbs' | 'category' | 'color'>>) => void;
+  onEditItem: (id: string, changes: Partial<Pick<CargoItem, 'label' | 'lengthIn' | 'widthIn' | 'heightIn' | 'weightLbs' | 'category' | 'color' | 'acceptsOnTop' | 'canStackOn'>>) => void;
   onSaveLoad: () => void;
   onLoadFile: () => void;
 }
@@ -139,6 +141,69 @@ async function saveUserLibrary(): Promise<void> {
  */
 function rebuildAllLibrary(): void {
   allLibraryItems = [...DEFAULT_LIBRARY, ...userLibrary];
+}
+
+// ============================================================================
+// STACKING RULE UI HELPERS
+// ============================================================================
+
+const ALL_ITEM_CATEGORIES: ItemCategory[] = ['general', 'fragile', 'heavy', 'hazardous', 'perishable'];
+
+/** Returns the select-mode string for a StackingRule value. */
+function stackingModeOf(rule: StackingRule): 'all' | 'none' | 'custom' {
+  if (rule === 'all') return 'all';
+  if (rule === 'none') return 'none';
+  return 'custom';
+}
+
+/**
+ * Generates HTML for a stacking rule selector composed of a <select> and an
+ * optional row of category checkboxes that appears when "custom" is chosen.
+ * The two generated element IDs are `${idPrefix}-mode` and `${idPrefix}-cats`.
+ */
+function buildStackingRuleHTML(idPrefix: string, label: string, rule: StackingRule): string {
+  const mode = stackingModeOf(rule);
+  const customCats = Array.isArray(rule) ? (rule as ItemCategory[]) : [];
+  return `
+    <div class="form-group" style="flex:1">
+      <label>${label}</label>
+      <select id="${idPrefix}-mode" style="width:100%;margin-bottom:4px">
+        <option value="all"    ${mode === 'all'    ? 'selected' : ''}>All categories</option>
+        <option value="none"   ${mode === 'none'   ? 'selected' : ''}>None</option>
+        <option value="custom" ${mode === 'custom' ? 'selected' : ''}>Custom…</option>
+      </select>
+      <div id="${idPrefix}-cats"
+           style="display:${mode === 'custom' ? 'flex' : 'none'};flex-wrap:wrap;gap:4px;margin-top:2px">
+        ${ALL_ITEM_CATEGORIES.map(cat => `
+          <label style="display:flex;align-items:center;gap:3px;font-size:10px;cursor:pointer">
+            <input type="checkbox" value="${cat}" ${customCats.includes(cat) ? 'checked' : ''}>
+            <span class="category-badge ${cat}">${cat}</span>
+          </label>`).join('')}
+      </div>
+    </div>`;
+}
+
+/** Wires the change event so the checkboxes div is shown only when "custom" is selected. */
+function attachStackingRuleListener(idPrefix: string): void {
+  const sel = document.getElementById(`${idPrefix}-mode`) as HTMLSelectElement | null;
+  const cats = document.getElementById(`${idPrefix}-cats`) as HTMLDivElement | null;
+  if (sel && cats) {
+    sel.addEventListener('change', () => {
+      cats.style.display = sel.value === 'custom' ? 'flex' : 'none';
+    });
+  }
+}
+
+/** Reads the current value from a stacking rule control back as a StackingRule. */
+function readStackingRule(idPrefix: string): StackingRule {
+  const sel = document.getElementById(`${idPrefix}-mode`) as HTMLSelectElement | null;
+  if (!sel || sel.value === 'all') return 'all';
+  if (sel.value === 'none') return 'none';
+  const cats = document.getElementById(`${idPrefix}-cats`) as HTMLDivElement | null;
+  if (!cats) return 'all';
+  const checked = Array.from(cats.querySelectorAll<HTMLInputElement>('input[type="checkbox"]:checked'))
+    .map(cb => cb.value as ItemCategory);
+  return checked.length > 0 ? checked : 'none';
 }
 
 // ============================================================================
@@ -300,7 +365,11 @@ export function buildUI(callbacks: UICallbacks): void {
           <input type="number" id="item-weight" placeholder="500" min="0" />
         </div>
       </div>
-      <button class="btn btn-primary btn-full" id="btn-add-item">+ Add to Container</button>
+      <div class="form-row" style="margin-top:6px">
+        ${buildStackingRuleHTML('item-aot', 'Accepts on Top', 'all')}
+        ${buildStackingRuleHTML('item-cso', 'Can Stack On', 'all')}
+      </div>
+      <button class="btn btn-primary btn-full" id="btn-add-item" style="margin-top:6px">+ Add to Container</button>
     </div>
   `;
   cargoScroll.appendChild(addSection);
@@ -619,7 +688,9 @@ export function buildUI(callbacks: UICallbacks): void {
     if (!lengthIn || !widthIn || !heightIn) { showToast('Please enter valid dimensions', 'error'); return; }
     if (isNaN(weightLbs) || weightLbs < 0) { showToast('Please enter a valid weight', 'error'); return; }
 
-    callbacks.onAddItem({ label, category, lengthIn, widthIn, heightIn, weightLbs });
+    const acceptsOnTop = readStackingRule('item-aot');
+    const canStackOn = readStackingRule('item-cso');
+    callbacks.onAddItem({ label, category, lengthIn, widthIn, heightIn, weightLbs, acceptsOnTop, canStackOn });
 
     (document.getElementById('item-label') as HTMLInputElement).value = '';
     (document.getElementById('item-length') as HTMLInputElement).value = '';
@@ -877,6 +948,8 @@ function showLibraryNamingModal(def: LibraryItemDef, callbacks: UICallbacks): vo
         heightIn: def.heightIn,
         weightLbs: def.weightLbs,
         category: def.category,
+        acceptsOnTop: def.acceptsOnTop ?? 'all',
+        canStackOn: def.canStackOn ?? 'all',
       });
     }
 
@@ -963,6 +1036,11 @@ export function showEditItemModal(item: CargoItem, callbacks: UICallbacks): void
         </div>
       </div>
 
+      <div class="form-row" style="margin-top:8px">
+        ${buildStackingRuleHTML('edit-aot', 'Accepts on Top', item.acceptsOnTop ?? 'all')}
+        ${buildStackingRuleHTML('edit-cso', 'Can Stack On', item.canStackOn ?? 'all')}
+      </div>
+
       <div id="edit-validation-msg" style="margin-top:8px;min-height:24px"></div>
 
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
@@ -973,6 +1051,8 @@ export function showEditItemModal(item: CargoItem, callbacks: UICallbacks): void
   `;
 
   document.body.appendChild(overlay);
+  attachStackingRuleListener('edit-aot');
+  attachStackingRuleListener('edit-cso');
 
   const labelInput = document.getElementById('edit-label') as HTMLInputElement;
   const catSelect = document.getElementById('edit-category') as HTMLSelectElement;
@@ -1037,7 +1117,7 @@ export function showEditItemModal(item: CargoItem, callbacks: UICallbacks): void
       return;
     }
 
-    const changes: Partial<Pick<CargoItem, 'label' | 'lengthIn' | 'widthIn' | 'heightIn' | 'weightLbs' | 'category' | 'color'>> = {};
+    const changes: Partial<Pick<CargoItem, 'label' | 'lengthIn' | 'widthIn' | 'heightIn' | 'weightLbs' | 'category' | 'color' | 'acceptsOnTop' | 'canStackOn'>> = {};
     
     if (label !== item.label) changes.label = label;
     if (category !== item.category) changes.category = category;
@@ -1046,6 +1126,11 @@ export function showEditItemModal(item: CargoItem, callbacks: UICallbacks): void
     if (heightIn !== item.heightIn) changes.heightIn = heightIn;
     if (weightLbs !== item.weightLbs) changes.weightLbs = weightLbs;
     if (color !== item.color) changes.color = color;
+
+    const newAot = readStackingRule('edit-aot');
+    const newCso = readStackingRule('edit-cso');
+    if (JSON.stringify(newAot) !== JSON.stringify(item.acceptsOnTop ?? 'all')) changes.acceptsOnTop = newAot;
+    if (JSON.stringify(newCso) !== JSON.stringify(item.canStackOn ?? 'all')) changes.canStackOn = newCso;
 
     if (Object.keys(changes).length === 0) {
       overlay.remove();

@@ -511,6 +511,8 @@ export class ContainerVizApp {
       heightIn: def.heightIn,
       weightLbs: def.weightLbs,
       category: def.category,
+      acceptsOnTop: def.acceptsOnTop ?? 'all',
+      canStackOn: def.canStackOn ?? 'all',
     });
   }
 
@@ -654,11 +656,11 @@ export class ContainerVizApp {
   }
 
   /**
-   * Edit an existing item's properties (label, dims, weight, category, color).
+   * Edit an existing item's properties (label, dims, weight, category, color, stacking rules).
    */
   private editItem(
     id: string,
-    changes: Partial<Pick<CargoItem, 'label' | 'lengthIn' | 'widthIn' | 'heightIn' | 'weightLbs' | 'category' | 'color'>>
+    changes: Partial<Pick<CargoItem, 'label' | 'lengthIn' | 'widthIn' | 'heightIn' | 'weightLbs' | 'category' | 'color' | 'acceptsOnTop' | 'canStackOn'>>
   ): void {
     const item = this.items.find(i => i.id === id);
     if (!item) return;
@@ -678,6 +680,8 @@ export class ContainerVizApp {
     if (changes.weightLbs !== undefined) item.weightLbs = changes.weightLbs;
     if (changes.category !== undefined) item.category = changes.category;
     if (changes.color !== undefined) item.color = changes.color;
+    if (changes.acceptsOnTop !== undefined) item.acceptsOnTop = changes.acceptsOnTop;
+    if (changes.canStackOn !== undefined) item.canStackOn = changes.canStackOn;
 
     const dimsChanged = changes.lengthIn !== undefined || changes.widthIn !== undefined || changes.heightIn !== undefined;
 
@@ -999,9 +1003,13 @@ export class ContainerVizApp {
           }
         }
 
-        // Load all items
+        // Load all items (backward-compat: supply defaults for fields added in later versions)
         for (const itemData of savedLoad.items) {
-          const item: CargoItem = { ...itemData };
+          const item: CargoItem = {
+            ...itemData,
+            acceptsOnTop: itemData.acceptsOnTop ?? 'all',
+            canStackOn: itemData.canStackOn ?? 'all',
+          };
           this.items.push(item);
           this.createItemMeshInternal(item);
           this.labelManager.createLabel(item);
