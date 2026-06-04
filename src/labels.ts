@@ -150,22 +150,6 @@ export class ItemLabelManager {
   }
 
   /**
-   * No-op method for compatibility with 2D label systems.
-   * 3D labels automatically update with camera movement.
-   * 
-   * @param _items - Cargo items (unused)
-   * @param _camera - Camera (unused)
-   * @param _containerRect - Container rect (unused)
-   */
-  updatePositions(
-    _items: CargoItem[],
-    _camera: THREE.Camera,
-    _containerRect: DOMRect
-  ): void {
-    // Nothing needed - labels are in 3D space and update automatically
-  }
-
-  /**
    * Synchronizes label visibility with item visibility.
    * Called when an item is hidden/shown to update its label accordingly.
    * 

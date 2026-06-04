@@ -506,6 +506,38 @@ export const DEFAULT_LIBRARY: LibraryItemDef[] = [
     category: 'general', 
     group: 'Furniture' 
   },
+
+  // ===== INDUSTRIAL =====
+  {
+    name: 'SurePak',
+    icon: '📦',
+    lengthIn: 48,
+    widthIn: 40,
+    heightIn: 45,
+    weightLbs: 60,
+    category: 'general',
+    group: 'Industrial',
+  },
+  {
+    name: 'Blade Container',
+    icon: '📐',
+    lengthIn: 303,
+    widthIn: 38,
+    heightIn: 18,
+    weightLbs: 500,
+    category: 'heavy',
+    group: 'Industrial',
+  },
+  {
+    name: 'Sheet Metal Crate',
+    icon: '🔩',
+    lengthIn: 152,
+    widthIn: 53,
+    heightIn: 8,
+    weightLbs: 400,
+    category: 'heavy',
+    group: 'Industrial',
+  },
 ];
 
 // ============================================================================

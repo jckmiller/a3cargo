@@ -275,42 +275,6 @@ export function findStackingY(
   return { y: bestY, stackedOn };
 }
 
-/**
- * Finds all possible horizontal stacking levels for an item.
- * Returns sorted array of Y positions where item could potentially be placed,
- * including floor (0) and tops of all compatible items.
- * 
- * @param item - Item to find stack levels for
- * @param allItems - All items in container
- * @param container - Container specifications
- * @returns Sorted array of possible Y positions in inches
- * 
- * @example
- * const levels = findAllStackLevels(item, items, container);
- * // levels might be [0, 12, 24, 48] representing floor and item tops
- */
-export function findAllStackLevels(
-  item: CargoItem,
-  allItems: CargoItem[],
-  container: ContainerSpec
-): number[] {
-  const levels = new Set<number>();
-  levels.add(0); // Always include floor level
-
-  // Add top surface of each item as potential level
-  for (const other of allItems) {
-    if (other.id === item.id) continue;
-    const topY = other.posY + other.heightIn;
-    
-    // Only include if item would fit below container ceiling
-    if (topY + item.heightIn <= container.heightIn + 0.5) {
-      levels.add(topY);
-    }
-  }
-
-  return Array.from(levels).sort((a, b) => a - b);
-}
-
 // ============================================================================
 // CALCULATIONS AND MEASUREMENTS
 // ============================================================================

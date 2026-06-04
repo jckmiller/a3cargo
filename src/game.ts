@@ -22,10 +22,10 @@ import {
   CargoItem,
   CATEGORY_COLORS,
   ColorMode,
-  SCALE_FACTOR,
   ITEM_COLORS,
   DEFAULT_GRID_SIZE,
   LibraryItemDef,
+  SavedLoad,
 } from "./definitions";
 import {
   createContainerMesh,
@@ -110,9 +110,6 @@ export class ContainerVizApp {
   /** Raycaster for mouse picking */
   private raycaster = new THREE.Raycaster();
   
-  /** Mouse position in normalized device coordinates */
-  private mouse = new THREE.Vector2();
-
   // ========================================================================
   // CONTAINER STATE
   // ========================================================================
@@ -287,7 +284,6 @@ export class ContainerVizApp {
    * then restore original state.
    */
   private withLightSceneForSnapshot<T>(fn: () => T): T {
-    const wasDark = this.isDarkMode;
     const origBg = (this.scene.background as THREE.Color)?.clone();
     const origFogColor = this.scene.fog ? (this.scene.fog as THREE.Fog).color.clone() : null;
     const origGroundColor = this.groundPlane
@@ -559,7 +555,7 @@ export class ContainerVizApp {
   }
 
   private updateAllItemMeshes(): void {
-    for (const [id, mesh] of this.itemMeshes) {
+    for (const mesh of this.itemMeshes.values()) {
       this.scene.remove(mesh);
     }
     this.itemMeshes.clear();
@@ -900,7 +896,7 @@ export class ContainerVizApp {
   }
 
   private clearAll(): void {
-    for (const [id, mesh] of this.itemMeshes) {
+    for (const mesh of this.itemMeshes.values()) {
       this.scene.remove(mesh);
     }
     this.itemMeshes.clear();
@@ -924,7 +920,7 @@ export class ContainerVizApp {
       return;
     }
 
-    const savedLoad: import('./definitions').SavedLoad = {
+    const savedLoad: SavedLoad = {
       version: '1.0',
       containerType: this.containerSpec.name,
       items: this.items,
@@ -965,7 +961,7 @@ export class ContainerVizApp {
 
       try {
         const text = await file.text();
-        const savedLoad: import('./definitions').SavedLoad = JSON.parse(text);
+        const savedLoad: SavedLoad = JSON.parse(text);
 
         // Validate file format
         if (!savedLoad.version || !savedLoad.containerType || !savedLoad.items) {
@@ -1366,7 +1362,7 @@ export class ContainerVizApp {
     this.raycaster.setFromCamera(ndc, this.camera);
     
     const meshes: THREE.Object3D[] = [];
-    for (const [id, group] of this.itemMeshes) {
+    for (const group of this.itemMeshes.values()) {
       group.traverse((child) => {
         if ((child as THREE.Mesh).isMesh && child.name === 'item-box') {
           meshes.push(child);

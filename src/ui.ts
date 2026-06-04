@@ -33,7 +33,6 @@ import {
   calculateUtilization,
   calculateTotalWeight,
   getWeightDistribution,
-  formatWeight,
   formatDimensions,
   getWeightColor,
   getRotationLabel,
@@ -88,9 +87,6 @@ let userLibrary: LibraryItemDef[] = [];
 
 /** Combined library (default + user presets) */
 let allLibraryItems: LibraryItemDef[] = [...DEFAULT_LIBRARY];
-
-/** Current grid size (tracked for UI updates) */
-let currentGridSize = DEFAULT_GRID_SIZE;
 
 /** Global callbacks reference (used by helper functions) */
 let _globalCallbacks: UICallbacks | null = null;
@@ -667,7 +663,6 @@ export function buildUI(callbacks: UICallbacks): void {
     const btn = (e.target as HTMLElement).closest('.grid-size-btn') as HTMLElement;
     if (!btn) return;
     const size = parseInt(btn.dataset.gridSize!);
-    currentGridSize = size;
     document.querySelectorAll('.grid-size-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     callbacks.onGridSizeChange(size);

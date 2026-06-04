@@ -13,7 +13,6 @@ import * as THREE from "three";
 import {
   CargoItem,
   ContainerSpec,
-  SCALE_FACTOR,
 } from "./definitions";
 import { inchesToUnits } from "./utils";
 
