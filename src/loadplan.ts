@@ -19,6 +19,7 @@ import {
   ContainerSpec,
   CATEGORY_COLORS,
 } from "./definitions";
+import { getLogoDataUrl } from "./logo";
 import {
   calculateUtilization,
   calculateTotalWeight,
@@ -494,6 +495,11 @@ export function generatePrintableLoadPlan(
   const utilization = calculateUtilization(items, container);
   const dist = getWeightDistribution(items, container);
 
+  const logoDataUrl = getLogoDataUrl();
+  const logoHtml = logoDataUrl
+    ? `<img src="${logoDataUrl}" alt="Logo" style="height:38px;width:auto;display:block;object-fit:contain;margin-bottom:4px" />`
+    : '';
+
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -503,52 +509,53 @@ export function generatePrintableLoadPlan(
     @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap");
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Inter', sans-serif; color: #1a202c; padding: 28px; font-size: 12px; line-height: 1.5; background: white; }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 3px solid #e84545; padding-bottom: 14px; }
-    .header h1 { font-size: 20px; font-weight: 800; color: #e84545; }
-    .header .subtitle { font-size: 11px; color: #666; }
-    .header .date { font-size: 10px; color: #999; text-align: right; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; border-bottom: 3px solid #1e40af; padding-bottom: 14px; }
+    .header-brand { display: flex; align-items: center; gap: 10px; }
+    .header h1 { font-size: 20px; font-weight: 800; color: #1e3a5f; }
+    .header .subtitle { font-size: 11px; color: #4b6280; }
+    .header .date { font-size: 10px; color: #666; text-align: right; }
     .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
-    .summary-card { border: 1px solid #ddd; border-radius: 6px; padding: 10px; text-align: center; }
-    .summary-card .value { font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 700; color: #e84545; }
-    .summary-card .label { font-size: 8px; color: #888; text-transform: uppercase; letter-spacing: 0.7px; font-weight: 600; }
-    .step { border: 1px solid #e0e0e0; border-radius: 8px; padding: 14px; margin-bottom: 12px; page-break-inside: avoid; }
+    .summary-card { border: 1px solid #c7d8f0; border-radius: 6px; padding: 10px; text-align: center; background: #f8fafd; }
+    .summary-card .value { font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 700; color: #1e40af; }
+    .summary-card .label { font-size: 8px; color: #4b6280; text-transform: uppercase; letter-spacing: 0.7px; font-weight: 600; }
+    .step { border: 1px solid #d4e4f7; border-radius: 8px; padding: 14px; margin-bottom: 12px; page-break-inside: avoid; }
     .step-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
-    .step-num { width: 32px; height: 32px; border-radius: 50%; background: #e84545; color: white; font-weight: 800; font-size: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .step-num { width: 32px; height: 32px; border-radius: 50%; background: #1e40af; color: white; font-weight: 800; font-size: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
     .step-info { flex: 1; }
-    .step-name { font-size: 14px; font-weight: 700; color: #333; margin-bottom: 2px; }
-    .step-specs { font-size: 10px; color: #888; font-family: 'JetBrains Mono', monospace; }
-    .step-img { width: 200px; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; flex-shrink: 0; page-break-inside: avoid; }
+    .step-name { font-size: 14px; font-weight: 700; color: #1e3a5f; margin-bottom: 2px; }
+    .step-specs { font-size: 10px; color: #4b6280; font-family: 'JetBrains Mono', monospace; }
+    .step-img { width: 200px; border: 1px solid #c7d8f0; border-radius: 6px; overflow: hidden; flex-shrink: 0; page-break-inside: avoid; }
     .step-img img { width: 800px; max-width: 100%; height: auto; display: block; }
-    .instruction { background: #f7f9fb; border-radius: 6px; padding: 10px; margin-bottom: 8px; font-size: 11px; line-height: 1.6; color: #333; border-left: 3px solid #e84545; }
+    .instruction { background: #f0f7f4; border-radius: 6px; padding: 10px; margin-bottom: 8px; font-size: 11px; line-height: 1.6; color: #1a3a2a; border-left: 3px solid #059669; }
     .pos-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px; }
-    .pos-cell { background: #f5f5f5; border-radius: 4px; padding: 5px 8px; text-align: center; }
-    .pos-cell .plabel { font-size: 8px; color: #999; text-transform: uppercase; letter-spacing: 0.5px; }
-    .pos-cell .pvalue { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600; color: #333; }
-    .tip { font-size: 10px; color: #666; padding: 3px 0; border-bottom: 1px dotted #eee; }
+    .pos-cell { background: #f0f4fa; border-radius: 4px; padding: 5px 8px; text-align: center; }
+    .pos-cell .plabel { font-size: 8px; color: #4b6280; text-transform: uppercase; letter-spacing: 0.5px; }
+    .pos-cell .pvalue { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600; color: #1e3a5f; }
+    .tip { font-size: 10px; color: #4b6280; padding: 3px 0; border-bottom: 1px dotted #d4e4f7; }
     .tip:last-child { border-bottom: none; }
     .cat { display: inline-block; padding: 1px 5px; border-radius: 6px; font-size: 8px; font-weight: 600; text-transform: uppercase; }
-    .cat.general { background: #e8f0fe; color: #4a7ae8; }
-    .cat.fragile { background: #fee; color: #e05252; }
-    .cat.heavy { background: #fef3cd; color: #d99e0b; }
-    .cat.hazardous { background: #ffedd5; color: #e07a2f; }
-    .cat.perishable { background: #d1fae5; color: #22b07a; }
-    .footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 9px; color: #999; text-align: center; }
-    .strategy { background: #f7f9fb; border: 1px solid #e8e8e8; border-radius: 6px; padding: 12px 14px; margin-bottom: 16px; }
-    .strategy h3 { font-size: 13px; margin-bottom: 8px; color: #333; }
+    .cat.general { background: #e8f0fe; color: #1e40af; }
+    .cat.fragile { background: #fce7f3; color: #9d174d; }
+    .cat.heavy { background: #fef3cd; color: #78350f; }
+    .cat.hazardous { background: #ffedd5; color: #9a3412; }
+    .cat.perishable { background: #d1fae5; color: #065f46; }
+    .footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #c7d8f0; font-size: 9px; color: #7a90aa; text-align: center; }
+    .strategy { background: #f0f4fa; border: 1px solid #c7d8f0; border-radius: 6px; padding: 12px 14px; margin-bottom: 16px; }
+    .strategy h3 { font-size: 13px; margin-bottom: 8px; color: #1e3a5f; }
     .strategy ul { list-style: none; padding: 0; }
-    .strategy li { font-size: 11px; color: #444; padding: 3px 0; border-bottom: 1px solid #f0f0f0; line-height: 1.6; }
+    .strategy li { font-size: 11px; color: #2d4a6a; padding: 3px 0; border-bottom: 1px solid #d4e4f7; line-height: 1.6; }
     .strategy li:last-child { border-bottom: none; }
-    .progress-bar { width: 100%; height: 5px; background: #eee; border-radius: 3px; overflow: hidden; margin-top: 6px; }
-    .progress-fill { height: 100%; background: linear-gradient(90deg, #4a7ae8, #0ea5c0); border-radius: 3px; }
+    .progress-bar { width: 100%; height: 5px; background: #d4e4f7; border-radius: 3px; overflow: hidden; margin-top: 6px; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, #1e40af, #059669); border-radius: 3px; }
     @media print { body { padding: 14px; } .step { page-break-inside: avoid; } }
   </style>
 </head>
 <body>
   <div class="header">
-    <div>
-      <h1>A3 Shipping Pro</h1>
+    <div class="header-brand">${logoHtml}<div>
+      <h1>Shipping Pro</h1>
       <div class="subtitle">Step-by-Step Load Plan</div>
-    </div>
+    </div></div>
     <div class="date">
       Container: <strong>${container.label}</strong><br>
       ${container.lengthIn}" x ${container.widthIn}" x ${container.heightIn}"<br>

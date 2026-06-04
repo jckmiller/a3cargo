@@ -41,6 +41,7 @@ import {
   stackingRuleLabel,
 } from "./utils";
 import { persistence } from "./libs/persistence";
+import { loadLogoDataUrl, getLogoDataUrl } from "./logo";
 
 // ============================================================================
 // UI CALLBACK INTERFACE
@@ -228,6 +229,9 @@ export function buildUI(callbacks: UICallbacks): void {
     renderLibraryItems('', callbacks);
   });
 
+  // Pre-load the logo so it is ready for printable documents
+  loadLogoDataUrl();
+
   const app = document.createElement('div');
   app.id = 'app-container';
 
@@ -240,9 +244,9 @@ export function buildUI(callbacks: UICallbacks): void {
     <div class="panel-header">
       <div class="header-top">
         <div class="header-left">
-          <div class="logo-icon">A3</div>
+          <div class="logo-icon" id="header-logo-wrap">A3</div>
           <div>
-            <h1>A3 Shipping Pro</h1>
+            <h1>Shipping Pro</h1>
             <div class="subtitle">3D Container Loading</div>
           </div>
         </div>
@@ -633,6 +637,22 @@ export function buildUI(callbacks: UICallbacks): void {
   app.appendChild(viewport);
 
   document.body.appendChild(app);
+
+  // ===== INJECT LOGO INTO HEADER ONCE LOADED =====
+  loadLogoDataUrl().then(dataUrl => {
+    const logoWrap = document.getElementById('header-logo-wrap');
+    if (logoWrap && dataUrl) {
+      logoWrap.textContent = '';
+      logoWrap.style.background = 'none';
+      logoWrap.style.boxShadow = 'none';
+      logoWrap.style.padding = '0';
+      const img = document.createElement('img');
+      img.src = dataUrl;
+      img.alt = 'Company Logo';
+      img.style.cssText = 'height:36px;width:auto;display:block;object-fit:contain;border-radius:0';
+      logoWrap.appendChild(img);
+    }
+  });
 
   // ===== COLLAPSIBLE SECTIONS =====
   document.querySelectorAll('.collapsible-header').forEach(header => {
@@ -1531,6 +1551,11 @@ function printManifest(
       `).join('')
     : '';
 
+  const logoDataUrl = getLogoDataUrl();
+  const logoHtml = logoDataUrl
+    ? `<img src="${logoDataUrl}" alt="Logo" style="height:40px;width:auto;display:block;object-fit:contain;margin-bottom:4px" />`
+    : '';
+
   const html = `<!DOCTYPE html>
 <html><head>
 <meta charset="UTF-8">
@@ -1538,18 +1563,19 @@ function printManifest(
 <style>
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
 *{box-sizing:border-box;margin:0;padding:0}body{font-family:'Inter',sans-serif;color:#1a202c;padding:32px;font-size:12px;line-height:1.5;background:white}
-.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;border-bottom:3px solid #e84545;padding-bottom:16px}
-.header h1{font-size:22px;font-weight:800;color:#e84545}.header .subtitle{font-size:11px;color:#666;margin-top:2px}.header .date{font-size:11px;color:#999;text-align:right}
-table{width:100%;border-collapse:collapse;font-size:10px}th{text-align:left;padding:8px 10px;background:#f5f5f5;color:#666;font-size:8.5px;font-weight:700;text-transform:uppercase;border-bottom:2px solid #ddd}
-td{padding:7px 10px;border-bottom:1px solid #eee;font-family:'JetBrains Mono',monospace;font-size:10px}
-.footer{margin-top:24px;padding-top:12px;border-top:1px solid #ddd;font-size:10px;color:#999;text-align:center}
-.snapshot{margin-bottom:18px;border:1px solid #ddd;border-radius:6px;overflow:hidden;page-break-inside:avoid}
+.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;border-bottom:3px solid #1e40af;padding-bottom:16px}
+.header-brand{display:flex;align-items:center;gap:10px}
+.header h1{font-size:22px;font-weight:800;color:#1e3a5f}.header .subtitle{font-size:11px;color:#4b6280;margin-top:2px}.header .date{font-size:11px;color:#666;text-align:right}
+table{width:100%;border-collapse:collapse;font-size:10px}th{text-align:left;padding:8px 10px;background:#f0f4fa;color:#1e3a5f;font-size:8.5px;font-weight:700;text-transform:uppercase;border-bottom:2px solid #c7d8f0}
+td{padding:7px 10px;border-bottom:1px solid #eef2f7;font-family:'JetBrains Mono',monospace;font-size:10px}
+.footer{margin-top:24px;padding-top:12px;border-top:1px solid #c7d8f0;font-size:10px;color:#7a90aa;text-align:center}
+.snapshot{margin-bottom:18px;border:1px solid #c7d8f0;border-radius:6px;overflow:hidden;page-break-inside:avoid}
 .snapshot img{width:1200px;max-width:100%;height:auto;display:block}
-.snap-label{padding:5px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:#666;background:#f5f5f5;border-bottom:1px solid #ddd}
+.snap-label{padding:5px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:#4b6280;background:#f0f4fa;border-bottom:1px solid #c7d8f0}
 .snapshots-section{margin-bottom:18px}
-.snapshots-heading{font-size:14px;font-weight:700;color:#333;margin-bottom:10px}
+.snapshots-heading{font-size:14px;font-weight:700;color:#1e3a5f;margin-bottom:10px}
 </style></head><body>
-<div class="header"><div><h1>A3 Shipping Pro</h1><div class="subtitle">Container Loading Manifest</div></div>
+<div class="header"><div class="header-brand">${logoHtml}<div><h1>Shipping Pro</h1><div class="subtitle">Container Loading Manifest</div></div></div>
 <div class="date">Container: <strong>${container.label}</strong><br>${container.lengthIn}" &times; ${container.widthIn}" &times; ${container.heightIn}"<br>${new Date().toLocaleString()}</div></div>
 <p>Utilization: ${utilization.toFixed(1)}% &nbsp;|&nbsp; Weight: ${totalWeight.toLocaleString()} / ${container.maxWeightLbs.toLocaleString()} lbs &nbsp;|&nbsp; Items: ${items.length}</p>
 <br>
