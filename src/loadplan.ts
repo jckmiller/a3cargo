@@ -63,37 +63,14 @@ export interface LoadStep {
 // ============================================================================
 
 /**
- * Generates an optimized step-by-step loading plan from current item placement.
- * 
- * **Loading Priority Algorithm:**
+ * Sorts items using the default smart-sort algorithm:
  * 1. Lower Y position first (bottom to top)
  * 2. Heavier items first (for stability)
  * 3. Front to back (lower X first)
  * 4. Left to right (lower Z first)
- * 
- * This ensures:
- * - Heavy items on bottom for stability
- * - Proper stacking order (bottom-up)
- * - Logical loading sequence for workers
- * - Weight distribution awareness
- * 
- * @param items - Array of cargo items in the container
- * @param container - Container specifications
- * @returns Array of LoadStep objects in optimal loading order
- * 
- * @example
- * const plan = generateLoadPlan(items, container);
- * plan.forEach(step => {
- *   console.log(`Step ${step.stepNumber}: ${step.instruction}`);
- * });
  */
-export function generateLoadPlan(
-  items: CargoItem[],
-  container: ContainerSpec
-): LoadStep[] {
-  if (items.length === 0) return [];
-
-  const sorted = [...items].sort((a, b) => {
+export function smartSortItems(items: CargoItem[]): CargoItem[] {
+  return [...items].sort((a, b) => {
     const yDiff = a.posY - b.posY;
     if (Math.abs(yDiff) > 1) return yDiff;
 
@@ -105,6 +82,47 @@ export function generateLoadPlan(
 
     return a.posZ - b.posZ;
   });
+}
+
+/** Category priority order for category-based sorting */
+const CATEGORY_PRIORITY: Record<string, number> = {
+  heavy: 0,
+  hazardous: 1,
+  general: 2,
+  perishable: 3,
+  fragile: 4,
+};
+
+/**
+ * Generates an optimized step-by-step loading plan from current item placement.
+ * 
+ * **Loading Priority Algorithm (default):**
+ * 1. Lower Y position first (bottom to top)
+ * 2. Heavier items first (for stability)
+ * 3. Front to back (lower X first)
+ * 4. Left to right (lower Z first)
+ * 
+ * Pass a `preOrderedItems` array to skip auto-sorting and use a custom order instead.
+ * 
+ * @param items - Array of cargo items in the container
+ * @param container - Container specifications
+ * @param preOrderedItems - Optional pre-sorted array; if provided, skips auto-sort
+ * @returns Array of LoadStep objects in the chosen loading order
+ * 
+ * @example
+ * const plan = generateLoadPlan(items, container);
+ * plan.forEach(step => {
+ *   console.log(`Step ${step.stepNumber}: ${step.instruction}`);
+ * });
+ */
+export function generateLoadPlan(
+  items: CargoItem[],
+  container: ContainerSpec,
+  preOrderedItems?: CargoItem[]
+): LoadStep[] {
+  if (items.length === 0) return [];
+
+  const sorted = preOrderedItems ? [...preOrderedItems] : smartSortItems(items);
 
   const steps: LoadStep[] = [];
   let cumulativeWeight = 0;

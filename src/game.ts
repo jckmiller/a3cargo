@@ -65,7 +65,7 @@ import {
   UICallbacks,
 } from "./ui";
 import { ItemLabelManager } from "./labels";
-import { generateLoadPlan, generateLoadPlanHTML, generatePrintableLoadPlan, LoadStep } from "./loadplan";
+import { generateLoadPlan, generateLoadPlanHTML, generatePrintableLoadPlan, smartSortItems, LoadStep } from "./loadplan";
 import { persistence } from "./libs/persistence";
 
 /**
@@ -1112,15 +1112,157 @@ export class ContainerVizApp {
   }
 
   /**
-   * Generate step-by-step load plan with incremental snapshots (light mode).
+   * Opens the load plan order configuration modal first, then generates the plan.
    */
   private showLoadPlan(): void {
     if (this.items.length === 0) {
       showToast('Add items to the container first to generate a load plan', 'warning');
       return;
     }
+    this.showLoadPlanOrderModal();
+  }
 
-    const steps = generateLoadPlan(this.items, this.containerSpec);
+  /**
+   * Shows the load order configuration step.
+   * Lets the user choose a sort preset or manually reorder items before generating the plan.
+   */
+  private showLoadPlanOrderModal(): void {
+    // Work with a mutable copy of items in desired order
+    let orderedItems: CargoItem[] = smartSortItems(this.items);
+
+    const CATEGORY_PRIORITY: Record<string, number> = {
+      heavy: 0, hazardous: 1, general: 2, perishable: 3, fragile: 4,
+    };
+
+    const applySort = (mode: string) => {
+      switch (mode) {
+        case 'smart':
+          orderedItems = smartSortItems(this.items);
+          break;
+        case 'heaviest':
+          orderedItems = [...this.items].sort((a, b) => b.weightLbs - a.weightLbs);
+          break;
+        case 'lightest':
+          orderedItems = [...this.items].sort((a, b) => a.weightLbs - b.weightLbs);
+          break;
+        case 'front-to-back':
+          orderedItems = [...this.items].sort((a, b) => a.posX - b.posX);
+          break;
+        case 'category':
+          orderedItems = [...this.items].sort((a, b) =>
+            (CATEGORY_PRIORITY[a.category] ?? 99) - (CATEGORY_PRIORITY[b.category] ?? 99)
+          );
+          break;
+      }
+    };
+
+    const renderList = (): string => orderedItems.map((item, idx) => `
+      <div class="lpo-item" data-lpo-idx="${idx}">
+        <button class="lpo-move-btn" data-lpo-dir="up" data-lpo-idx="${idx}" ${idx === 0 ? 'disabled' : ''} title="Move up">&#9650;</button>
+        <button class="lpo-move-btn" data-lpo-dir="down" data-lpo-idx="${idx}" ${idx === orderedItems.length - 1 ? 'disabled' : ''} title="Move down">&#9660;</button>
+        <span class="lpo-step-num">${idx + 1}</span>
+        <span class="lpo-color" style="background:${item.color}"></span>
+        <span class="lpo-label">${item.label}</span>
+        <span class="category-badge ${item.category}">${item.category}</span>
+        <span class="lpo-weight">${item.weightLbs.toLocaleString()} lbs</span>
+        <span class="lpo-dims">${item.lengthIn}"x${item.widthIn}"x${item.heightIn}"</span>
+      </div>
+    `).join('');
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal medium lpo-modal" id="lpo-modal">
+        <h2>Configure Load Order</h2>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px">
+          Choose a sort preset or use the arrows to manually set the loading sequence. 
+          This order will be used for the step-by-step load plan.
+        </p>
+
+        <div class="lpo-presets">
+          <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">Sort Preset</div>
+          <div class="lpo-preset-btns">
+            <button class="lpo-preset-btn active" data-sort="smart" title="Bottom-to-top, heavy first, front-to-back">Smart Sort</button>
+            <button class="lpo-preset-btn" data-sort="heaviest" title="Heaviest items loaded first">Heaviest First</button>
+            <button class="lpo-preset-btn" data-sort="lightest" title="Lightest items loaded first">Lightest First</button>
+            <button class="lpo-preset-btn" data-sort="front-to-back" title="Items nearest the front loaded first">Front to Back</button>
+            <button class="lpo-preset-btn" data-sort="category" title="Heavy > Hazardous > General > Perishable > Fragile">By Category</button>
+          </div>
+        </div>
+
+        <div class="lpo-list-header">
+          <span style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px">Loading Order — ${this.items.length} Items</span>
+          <span style="font-size:11px;color:var(--text-muted)">Use arrows or a preset to reorder</span>
+        </div>
+
+        <div class="lpo-list" id="lpo-list">
+          ${renderList()}
+        </div>
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;padding-top:12px;border-top:1px solid var(--border-color)">
+          <button class="btn btn-secondary" id="lpo-cancel">Cancel</button>
+          <button class="btn btn-primary" id="lpo-generate">Generate Load Plan</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const listEl = document.getElementById('lpo-list')!;
+
+    const refreshList = () => {
+      listEl.innerHTML = renderList();
+      attachListListeners();
+    };
+
+    const attachListListeners = () => {
+      listEl.querySelectorAll('.lpo-move-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const el = btn as HTMLElement;
+          const idx = parseInt(el.dataset.lpoIdx!);
+          const dir = el.dataset.lpoDir!;
+          const newIdx = dir === 'up' ? idx - 1 : idx + 1;
+          if (newIdx < 0 || newIdx >= orderedItems.length) return;
+          // Swap items
+          [orderedItems[idx], orderedItems[newIdx]] = [orderedItems[newIdx], orderedItems[idx]];
+          // Clear active preset since order is now manual
+          overlay.querySelectorAll('.lpo-preset-btn').forEach(b => b.classList.remove('active'));
+          refreshList();
+        });
+      });
+    };
+
+    attachListListeners();
+
+    // Preset sort buttons
+    overlay.querySelectorAll('.lpo-preset-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        overlay.querySelectorAll('.lpo-preset-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        applySort((btn as HTMLElement).dataset.sort!);
+        refreshList();
+      });
+    });
+
+    document.getElementById('lpo-cancel')!.addEventListener('click', () => overlay.remove());
+
+    document.getElementById('lpo-generate')!.addEventListener('click', () => {
+      overlay.remove();
+      this.generateAndShowLoadPlan(orderedItems);
+    });
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+  }
+
+  /**
+   * Generates incremental snapshots and opens the load plan result modal
+   * using the given pre-ordered items array.
+   */
+  private generateAndShowLoadPlan(orderedItems: CargoItem[]): void {
+    const steps = generateLoadPlan(this.items, this.containerSpec, orderedItems);
     
     // Save original visibility
     const originalVisibility: Map<string, boolean> = new Map();
