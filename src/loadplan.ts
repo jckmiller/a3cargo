@@ -517,8 +517,8 @@ export function generatePrintableLoadPlan(
     .step-info { flex: 1; }
     .step-name { font-size: 14px; font-weight: 700; color: #333; margin-bottom: 2px; }
     .step-specs { font-size: 10px; color: #888; font-family: 'JetBrains Mono', monospace; }
-    .step-img { width: 200px; height: 120px; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; flex-shrink: 0; }
-    .step-img img { width: 100%; height: 100%; object-fit: cover; }
+    .step-img { width: 200px; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; flex-shrink: 0; page-break-inside: avoid; }
+    .step-img img { width: 800px; max-width: 100%; height: auto; display: block; }
     .instruction { background: #f7f9fb; border-radius: 6px; padding: 10px; margin-bottom: 8px; font-size: 11px; line-height: 1.6; color: #333; border-left: 3px solid #e84545; }
     .pos-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px; }
     .pos-cell { background: #f5f5f5; border-radius: 4px; padding: 5px 8px; text-align: center; }

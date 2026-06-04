@@ -1280,12 +1280,34 @@ export function updateDropIndicator(text: string | null, stacking: boolean = fal
   }
 }
 
-export function showManifestModal(items: CargoItem[], container: ContainerSpec, snapshotDataUrl: string | null, onClose: () => void): void {
+export function showManifestModal(
+  items: CargoItem[],
+  container: ContainerSpec,
+  snapshots: { label: string; dataUrl: string }[],
+  onClose: () => void
+): void {
   const utilization = calculateUtilization(items, container);
   const totalWeight = calculateTotalWeight(items);
   const dist = getWeightDistribution(items, container);
   const totalVolume = items.reduce((s, i) => s + (i.lengthIn * i.widthIn * i.heightIn) / 1728, 0);
   const containerVolume = (container.lengthIn * container.widthIn * container.heightIn) / 1728;
+
+  // Build snapshot section HTML (1 or 2 per row depending on count)
+  const snapshotSectionHtml = snapshots.length > 0 ? `
+    <h3>3D View Snapshots</h3>
+    <div style="display:grid;grid-template-columns:${snapshots.length === 1 ? '1fr' : '1fr 1fr'};gap:12px;margin-bottom:18px">
+      ${snapshots.map(s => `
+        <div style="border:1px solid var(--border-color);border-radius:var(--radius-md);overflow:hidden">
+          <img src="${s.dataUrl}"
+               style="width:100%;height:auto;display:block"
+               alt="${s.label}" />
+          <div style="padding:5px 8px;font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;background:var(--bg-card);text-align:center">
+            ${s.label}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  ` : '';
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
@@ -1337,12 +1359,7 @@ export function showManifestModal(items: CargoItem[], container: ContainerSpec, 
         </div>
       </div>
 
-      ${snapshotDataUrl ? `
-        <h3>3D View Snapshot</h3>
-        <div style="margin-bottom:18px;border:1px solid var(--border-color);border-radius:var(--radius-md);overflow:hidden;max-height:300px">
-          <img src="${snapshotDataUrl}" style="width:100%;display:block" alt="Container 3D view" />
-        </div>
-      ` : ''}
+      ${snapshotSectionHtml}
 
       <h3>Item Details</h3>
       <div style="overflow-x:auto">
@@ -1410,7 +1427,7 @@ export function showManifestModal(items: CargoItem[], container: ContainerSpec, 
   });
 
   document.getElementById('manifest-print')!.addEventListener('click', () => {
-    printManifest(items, container, utilization, totalWeight, dist, snapshotDataUrl);
+    printManifest(items, container, utilization, totalWeight, dist, snapshots);
   });
 }
 
@@ -1420,10 +1437,22 @@ function printManifest(
   utilization: number,
   totalWeight: number,
   dist: { front: number; back: number; left: number; right: number },
-  snapshotDataUrl: string | null,
+  snapshots: { label: string; dataUrl: string }[],
 ): void {
   const totalVolume = items.reduce((s, i) => s + (i.lengthIn * i.widthIn * i.heightIn) / 1728, 0);
   const containerVolume = (container.lengthIn * container.widthIn * container.heightIn) / 1728;
+
+  // Build snapshot HTML for the printable page.
+  // Each image is sized to exactly 1200×600 CSS pixels so it
+  // is consistent on paper regardless of print settings.
+  const snapshotHtmlBlocks = snapshots.length > 0
+    ? snapshots.map(s => `
+        <div class="snapshot">
+          <div class="snap-label">${s.label}</div>
+          <img src="${s.dataUrl}" alt="${s.label}" />
+        </div>
+      `).join('')
+    : '';
 
   const html = `<!DOCTYPE html>
 <html><head>
@@ -1437,14 +1466,17 @@ function printManifest(
 table{width:100%;border-collapse:collapse;font-size:10px}th{text-align:left;padding:8px 10px;background:#f5f5f5;color:#666;font-size:8.5px;font-weight:700;text-transform:uppercase;border-bottom:2px solid #ddd}
 td{padding:7px 10px;border-bottom:1px solid #eee;font-family:'JetBrains Mono',monospace;font-size:10px}
 .footer{margin-top:24px;padding-top:12px;border-top:1px solid #ddd;font-size:10px;color:#999;text-align:center}
-.snapshot{margin-bottom:18px;border:1px solid #ddd;border-radius:6px;overflow:hidden;max-height:280px}
-.snapshot img{width:100%;display:block}
+.snapshot{margin-bottom:18px;border:1px solid #ddd;border-radius:6px;overflow:hidden;page-break-inside:avoid}
+.snapshot img{width:1200px;max-width:100%;height:auto;display:block}
+.snap-label{padding:5px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:#666;background:#f5f5f5;border-bottom:1px solid #ddd}
+.snapshots-section{margin-bottom:18px}
+.snapshots-heading{font-size:14px;font-weight:700;color:#333;margin-bottom:10px}
 </style></head><body>
 <div class="header"><div><h1>A3 Shipping Pro</h1><div class="subtitle">Container Loading Manifest</div></div>
 <div class="date">Container: <strong>${container.label}</strong><br>${container.lengthIn}" x ${container.widthIn}" x ${container.heightIn}"<br>${new Date().toLocaleString()}</div></div>
 <p>Utilization: ${utilization.toFixed(1)}% | Weight: ${totalWeight.toLocaleString()} / ${container.maxWeightLbs.toLocaleString()} lbs | Items: ${items.length}</p>
 <br>
-${snapshotDataUrl ? `<div class="snapshot"><img src="${snapshotDataUrl}" alt="Container view" /></div>` : ''}
+${snapshotHtmlBlocks ? `<div class="snapshots-section"><div class="snapshots-heading">3D View Snapshots</div>${snapshotHtmlBlocks}</div>` : ''}
 <table><thead><tr><th>#</th><th>Label</th><th>Category</th><th>Dimensions</th><th>Weight</th><th>Position</th><th>Volume</th></tr></thead><tbody>
 ${items.map((item, i) => `<tr><td>${i+1}</td><td style="font-family:'Inter',sans-serif;font-weight:600">${item.label}</td><td>${item.category}</td><td>${item.lengthIn}" x ${item.widthIn}" x ${item.heightIn}"</td><td>${item.weightLbs.toLocaleString()} lbs</td><td>${item.posX.toFixed(0)}", ${item.posY.toFixed(0)}", ${item.posZ.toFixed(0)}"</td><td>${((item.lengthIn*item.widthIn*item.heightIn)/1728).toFixed(1)} ft3</td></tr>`).join('')}
 </tbody></table>

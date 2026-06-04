@@ -1097,18 +1097,159 @@ export class ContainerVizApp {
   }
 
   /**
-   * Get a scene snapshot using light mode for print-friendly output.
+   * Captures a single snapshot of the scene at a fixed resolution from a
+   * named camera angle. Uses the light-mode palette for print-friendly output.
+   * Renderer is temporarily resized to the exact snapshot dimensions so the
+   * resulting image is always a stable, predictable size regardless of the
+   * current browser window size.
+   *
+   * @param view - Camera angle to render from
+   * @returns data URL of the captured PNG image
    */
-  private getSceneSnapshotForPrint(): string {
-    return this.withLightSceneForSnapshot(() => {
+  private captureViewSnapshot(view: 'front' | 'top' | 'side' | 'iso'): string {
+    const SNAP_W = 1200;
+    const SNAP_H = 600;
+
+    // Save current renderer / camera state
+    const container = document.getElementById('viewport-container')!;
+    const origW = container.clientWidth;
+    const origH = container.clientHeight;
+    const origPixelRatio = this.renderer.getPixelRatio();
+    const origAspect = this.camera.aspect;
+    const origCamPos = this.camera.position.clone();
+    const origTarget = this.controls.target.clone();
+
+    // Resize renderer to exactly SNAP_W × SNAP_H at 1:1 pixel ratio
+    // (updateStyle = false so the on-screen canvas CSS dimensions are unchanged)
+    this.renderer.setPixelRatio(1);
+    this.renderer.setSize(SNAP_W, SNAP_H, false);
+    this.camera.aspect = SNAP_W / SNAP_H;
+    this.camera.updateProjectionMatrix();
+
+    // Position camera for the requested view
+    const cx = inchesToUnits(this.containerSpec.lengthIn) / 2;
+    const cy = inchesToUnits(this.containerSpec.heightIn) / 2;
+    const cz = inchesToUnits(this.containerSpec.widthIn) / 2;
+    const maxDim = Math.max(
+      inchesToUnits(this.containerSpec.lengthIn),
+      inchesToUnits(this.containerSpec.heightIn)
+    ) * 1.8;
+
+    const target = new THREE.Vector3(cx, cy, cz);
+    let pos: THREE.Vector3;
+    switch (view) {
+      case 'front':
+        pos = new THREE.Vector3(cx, cy, cz + maxDim);
+        break;
+      case 'top':
+        pos = new THREE.Vector3(cx, cy + maxDim, cz + 0.01);
+        break;
+      case 'side':
+        pos = new THREE.Vector3(cx + maxDim, cy, cz);
+        break;
+      case 'iso':
+      default:
+        pos = new THREE.Vector3(cx + maxDim * 0.8, cy + maxDim * 0.6, cz + maxDim * 0.8);
+        break;
+    }
+
+    this.camera.position.copy(pos);
+    this.controls.target.copy(target);
+    this.controls.update();
+
+    // Render and capture using the light-mode palette
+    const dataUrl = this.withLightSceneForSnapshot(() => {
       this.renderer.render(this.scene, this.camera);
       return this.renderer.domElement.toDataURL('image/png');
     });
+
+    // Restore renderer and camera to their original state
+    this.renderer.setPixelRatio(origPixelRatio);
+    this.renderer.setSize(origW, origH, true);
+    this.camera.aspect = origAspect;
+    this.camera.updateProjectionMatrix();
+    this.camera.position.copy(origCamPos);
+    this.controls.target.copy(origTarget);
+    this.controls.update();
+
+    return dataUrl;
   }
 
+  /**
+   * Opens a view-selection dialog that lets the user pick one or more camera
+   * angles to include in the Loading Manifest as fixed-resolution snapshots.
+   */
   private showManifest(): void {
-    const snapshot = this.getSceneSnapshotForPrint();
-    showManifestModal(this.items, this.containerSpec, snapshot, () => {});
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal small" style="position:relative">
+        <h2>Manifest Snapshots</h2>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px">
+          Choose which 3D view angles to include as images in the manifest.<br>
+          Each view is captured at a fixed 1200x600 resolution for consistent printing.
+        </p>
+        <div class="form-group" style="margin-bottom:16px">
+          <label style="font-size:10.5px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:10px">View Angles</label>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <label style="display:flex;align-items:center;gap:10px;font-size:12.5px;cursor:pointer;padding:8px 12px;background:var(--bg-card);border:1px solid var(--border-color);border-radius:var(--radius-sm)">
+              <input type="checkbox" id="snap-view-iso" checked style="width:14px;height:14px;cursor:pointer" />
+              Isometric (3D) View
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;font-size:12.5px;cursor:pointer;padding:8px 12px;background:var(--bg-card);border:1px solid var(--border-color);border-radius:var(--radius-sm)">
+              <input type="checkbox" id="snap-view-front" style="width:14px;height:14px;cursor:pointer" />
+              Front View
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;font-size:12.5px;cursor:pointer;padding:8px 12px;background:var(--bg-card);border:1px solid var(--border-color);border-radius:var(--radius-sm)">
+              <input type="checkbox" id="snap-view-top" style="width:14px;height:14px;cursor:pointer" />
+              Top View
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;font-size:12.5px;cursor:pointer;padding:8px 12px;background:var(--bg-card);border:1px solid var(--border-color);border-radius:var(--radius-sm)">
+              <input type="checkbox" id="snap-view-side" style="width:14px;height:14px;cursor:pointer" />
+              Side View
+            </label>
+          </div>
+        </div>
+        <div id="snap-view-error" style="min-height:18px;margin-bottom:8px"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn btn-secondary" id="snap-cancel">Cancel</button>
+          <button class="btn btn-primary" id="snap-generate">Generate Manifest</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const doGenerate = () => {
+      const selected: { view: 'front' | 'top' | 'side' | 'iso'; label: string }[] = [];
+      if ((document.getElementById('snap-view-iso') as HTMLInputElement).checked)
+        selected.push({ view: 'iso', label: 'Isometric (3D) View' });
+      if ((document.getElementById('snap-view-front') as HTMLInputElement).checked)
+        selected.push({ view: 'front', label: 'Front View' });
+      if ((document.getElementById('snap-view-top') as HTMLInputElement).checked)
+        selected.push({ view: 'top', label: 'Top View' });
+      if ((document.getElementById('snap-view-side') as HTMLInputElement).checked)
+        selected.push({ view: 'side', label: 'Side View' });
+
+      if (selected.length === 0) {
+        document.getElementById('snap-view-error')!.innerHTML =
+          '<span style="font-size:11px;color:var(--accent-red)">Select at least one view angle.</span>';
+        return;
+      }
+
+      overlay.remove();
+
+      const snapshots = selected.map(s => ({
+        label: s.label,
+        dataUrl: this.captureViewSnapshot(s.view),
+      }));
+
+      showManifestModal(this.items, this.containerSpec, snapshots, () => {});
+    };
+
+    document.getElementById('snap-cancel')!.addEventListener('click', () => overlay.remove());
+    document.getElementById('snap-generate')!.addEventListener('click', doGenerate);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
   }
 
   /**
@@ -1260,17 +1401,20 @@ export class ContainerVizApp {
   /**
    * Generates incremental snapshots and opens the load plan result modal
    * using the given pre-ordered items array.
+   * 
+   * Each step snapshot is rendered at a fixed 800×480 resolution from the
+   * isometric view angle so that print output is always consistent.
    */
   private generateAndShowLoadPlan(orderedItems: CargoItem[]): void {
     const steps = generateLoadPlan(this.items, this.containerSpec, orderedItems);
-    
+
     // Save original visibility
     const originalVisibility: Map<string, boolean> = new Map();
     for (const item of this.items) {
       originalVisibility.set(item.id, item.visible);
     }
 
-    // Hide all items
+    // Hide all items initially
     for (const item of this.items) {
       item.visible = false;
       const mesh = this.itemMeshes.get(item.id);
@@ -1281,7 +1425,41 @@ export class ContainerVizApp {
     const labelsWereVisible = this.labelManager.isVisible;
     this.labelManager.setVisible(false);
 
-    // Generate snapshots for each step in light mode
+    // ── Fixed-size snapshot setup ──────────────────────────────────────────
+    // Resize the renderer to a consistent 800×480 pixel buffer (at 1:1 DPR)
+    // and position the camera at the standard iso angle so every step image
+    // has the same framing regardless of the current browser window size.
+    const SNAP_W = 800;
+    const SNAP_H = 480;
+    const container = document.getElementById('viewport-container')!;
+    const origW = container.clientWidth;
+    const origH = container.clientHeight;
+    const origPixelRatio = this.renderer.getPixelRatio();
+    const origAspect = this.camera.aspect;
+    const origCamPos = this.camera.position.clone();
+    const origTarget = this.controls.target.clone();
+
+    // Place the camera at the iso view for all step snapshots
+    const cx = inchesToUnits(this.containerSpec.lengthIn) / 2;
+    const cy = inchesToUnits(this.containerSpec.heightIn) / 2;
+    const cz = inchesToUnits(this.containerSpec.widthIn) / 2;
+    const maxDim = Math.max(
+      inchesToUnits(this.containerSpec.lengthIn),
+      inchesToUnits(this.containerSpec.heightIn)
+    ) * 1.8;
+    const isoPos = new THREE.Vector3(cx + maxDim * 0.8, cy + maxDim * 0.6, cz + maxDim * 0.8);
+    const isoTarget = new THREE.Vector3(cx, cy, cz);
+
+    this.camera.position.copy(isoPos);
+    this.controls.target.copy(isoTarget);
+    this.controls.update();
+    this.renderer.setPixelRatio(1);
+    this.renderer.setSize(SNAP_W, SNAP_H, false);
+    this.camera.aspect = SNAP_W / SNAP_H;
+    this.camera.updateProjectionMatrix();
+    // ──────────────────────────────────────────────────────────────────────
+
+    // Generate snapshots for each step in light mode at fixed size
     this.withLightSceneForSnapshot(() => {
       for (const step of steps) {
         step.item.visible = true;
@@ -1289,12 +1467,21 @@ export class ContainerVizApp {
         if (mesh) mesh.visible = true;
 
         this.renderer.render(this.scene, this.camera);
-        const snapshot = this.renderer.domElement.toDataURL('image/jpeg', 0.85);
-        step.snapshotDataUrl = snapshot;
+        step.snapshotDataUrl = this.renderer.domElement.toDataURL('image/jpeg', 0.85);
       }
     });
 
-    // Restore visibility
+    // ── Restore renderer and camera ────────────────────────────────────────
+    this.renderer.setPixelRatio(origPixelRatio);
+    this.renderer.setSize(origW, origH, true);
+    this.camera.aspect = origAspect;
+    this.camera.updateProjectionMatrix();
+    this.camera.position.copy(origCamPos);
+    this.controls.target.copy(origTarget);
+    this.controls.update();
+    // ──────────────────────────────────────────────────────────────────────
+
+    // Restore item visibility
     for (const item of this.items) {
       const wasVisible = originalVisibility.get(item.id) ?? true;
       item.visible = wasVisible;
