@@ -513,6 +513,7 @@ export class ContainerVizApp {
       category: def.category,
       acceptsOnTop: def.acceptsOnTop ?? 'all',
       canStackOn: def.canStackOn ?? 'all',
+      hazmatLevel: def.hazmatLevel ?? 'none',
     });
   }
 
@@ -656,11 +657,11 @@ export class ContainerVizApp {
   }
 
   /**
-   * Edit an existing item's properties (label, dims, weight, category, color, stacking rules).
+   * Edit an existing item's properties (label, dims, weight, category, color, stacking rules, hazmat).
    */
   private editItem(
     id: string,
-    changes: Partial<Pick<CargoItem, 'label' | 'lengthIn' | 'widthIn' | 'heightIn' | 'weightLbs' | 'category' | 'color' | 'acceptsOnTop' | 'canStackOn'>>
+    changes: Partial<Pick<CargoItem, 'label' | 'lengthIn' | 'widthIn' | 'heightIn' | 'weightLbs' | 'category' | 'color' | 'acceptsOnTop' | 'canStackOn' | 'hazmatLevel'>>
   ): void {
     const item = this.items.find(i => i.id === id);
     if (!item) return;
@@ -682,6 +683,7 @@ export class ContainerVizApp {
     if (changes.color !== undefined) item.color = changes.color;
     if (changes.acceptsOnTop !== undefined) item.acceptsOnTop = changes.acceptsOnTop;
     if (changes.canStackOn !== undefined) item.canStackOn = changes.canStackOn;
+    if (changes.hazmatLevel !== undefined) item.hazmatLevel = changes.hazmatLevel;
 
     const dimsChanged = changes.lengthIn !== undefined || changes.widthIn !== undefined || changes.heightIn !== undefined;
 

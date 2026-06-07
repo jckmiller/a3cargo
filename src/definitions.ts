@@ -91,6 +91,55 @@ export const CONTAINER_SPECS: Record<string, ContainerSpec> = {
  */
 export type ItemCategory = 'general' | 'fragile' | 'heavy' | 'hazardous' | 'perishable';
 
+// ============================================================================
+// HAZMAT CLASSIFICATION
+// ============================================================================
+
+/**
+ * UN/DOT hazardous materials classes.
+ * 'none' means the item is not classified as hazmat.
+ */
+export type HazmatLevel =
+  | 'none'
+  | '1-explosives'
+  | '2-gas'
+  | '3-flammable-liquid'
+  | '4-flammable-solid'
+  | '5-oxidizer'
+  | '6-toxic'
+  | '7-radioactive'
+  | '8-corrosive'
+  | '9-miscellaneous';
+
+/**
+ * Metadata for each UN/DOT hazmat class.
+ * color is the standard placard background color (hex).
+ */
+export interface HazmatClassInfo {
+  label: string;
+  /** Short display label for UI */
+  shortLabel: string;
+  /** Standard placard background color (hex string) */
+  color: string;
+  /** Contrasting text/symbol color (hex string) */
+  textColor: string;
+  /** UN class number (1–9) */
+  classNum: number;
+}
+
+export const HAZMAT_CLASSES: Record<HazmatLevel, HazmatClassInfo> = {
+  'none':               { label: 'None',                    shortLabel: '-',    color: '#cccccc', textColor: '#333333', classNum: 0 },
+  '1-explosives':       { label: 'Class 1 – Explosives',    shortLabel: 'Cl.1', color: '#ff6600', textColor: '#ffffff', classNum: 1 },
+  '2-gas':              { label: 'Class 2 – Gas',           shortLabel: 'Cl.2', color: '#33aa33', textColor: '#ffffff', classNum: 2 },
+  '3-flammable-liquid': { label: 'Class 3 – Flammable Liq', shortLabel: 'Cl.3', color: '#cc0000', textColor: '#ffffff', classNum: 3 },
+  '4-flammable-solid':  { label: 'Class 4 – Flammable Solid',shortLabel: 'Cl.4',color: '#ff4444', textColor: '#ffffff', classNum: 4 },
+  '5-oxidizer':         { label: 'Class 5 – Oxidizer',      shortLabel: 'Cl.5', color: '#ffdd00', textColor: '#000000', classNum: 5 },
+  '6-toxic':            { label: 'Class 6 – Toxic',         shortLabel: 'Cl.6', color: '#ffffff', textColor: '#000000', classNum: 6 },
+  '7-radioactive':      { label: 'Class 7 – Radioactive',   shortLabel: 'Cl.7', color: '#ffee33', textColor: '#000000', classNum: 7 },
+  '8-corrosive':        { label: 'Class 8 – Corrosive',     shortLabel: 'Cl.8', color: '#000000', textColor: '#ffffff', classNum: 8 },
+  '9-miscellaneous':    { label: 'Class 9 – Miscellaneous', shortLabel: 'Cl.9', color: '#888888', textColor: '#ffffff', classNum: 9 },
+};
+
 /**
  * Stacking rule — either allow all categories, allow none, or allow a specific subset.
  */
@@ -164,6 +213,9 @@ export interface CargoItem {
    * - ItemCategory[] → this item may only be stacked on items whose category is in the list
    */
   canStackOn: StackingRule;
+
+  /** UN/DOT hazmat classification level. Defaults to 'none'. */
+  hazmatLevel?: HazmatLevel;
 }
 
 // ============================================================================
@@ -272,268 +324,16 @@ export interface LibraryItemDef {
 
   /** Which categories this item may be stacked on top of (optional, defaults to 'all') */
   canStackOn?: StackingRule;
+
+  /** UN/DOT hazmat classification level (optional, defaults to 'none') */
+  hazmatLevel?: HazmatLevel;
 }
 
 /**
- * Default library of common shipping items.
- * Includes standard pallets, boxes, drums, machinery, and specialty items.
+ * Default library — Industrial presets only.
  * Users can add custom presets which are saved separately.
  */
 export const DEFAULT_LIBRARY: LibraryItemDef[] = [
-  // ===== PALLETS =====
-  { 
-    name: 'Standard Pallet (48×40)', 
-    icon: '🟫', 
-    lengthIn: 48, 
-    widthIn: 40, 
-    heightIn: 6, 
-    weightLbs: 45, 
-    category: 'general', 
-    group: 'Pallets' 
-  },
-  { 
-    name: 'Euro Pallet (48×32)', 
-    icon: '🟫', 
-    lengthIn: 48, 
-    widthIn: 32, 
-    heightIn: 6, 
-    weightLbs: 40, 
-    category: 'general', 
-    group: 'Pallets' 
-  },
-  { 
-    name: 'Half Pallet (24×40)', 
-    icon: '🟫', 
-    lengthIn: 24, 
-    widthIn: 40, 
-    heightIn: 6, 
-    weightLbs: 25, 
-    category: 'general', 
-    group: 'Pallets' 
-  },
-
-  // ===== BOXES =====
-  { 
-    name: 'Small Box', 
-    icon: '📦', 
-    lengthIn: 18, 
-    widthIn: 18, 
-    heightIn: 18, 
-    weightLbs: 30, 
-    category: 'general', 
-    group: 'Boxes' 
-  },
-  { 
-    name: 'Medium Box', 
-    icon: '📦', 
-    lengthIn: 24, 
-    widthIn: 24, 
-    heightIn: 24, 
-    weightLbs: 55, 
-    category: 'general', 
-    group: 'Boxes' 
-  },
-  { 
-    name: 'Large Box', 
-    icon: '📦', 
-    lengthIn: 36, 
-    widthIn: 24, 
-    heightIn: 24, 
-    weightLbs: 80, 
-    category: 'general', 
-    group: 'Boxes' 
-  },
-  { 
-    name: 'XL Crate', 
-    icon: '📦', 
-    lengthIn: 48, 
-    widthIn: 40, 
-    heightIn: 48, 
-    weightLbs: 200, 
-    category: 'general', 
-    group: 'Boxes' 
-  },
-  { 
-    name: 'Flat Box', 
-    icon: '📦', 
-    lengthIn: 48, 
-    widthIn: 36, 
-    heightIn: 12, 
-    weightLbs: 65, 
-    category: 'general', 
-    group: 'Boxes' 
-  },
-
-  // ===== DRUMS / BARRELS =====
-  { 
-    name: '55-Gal Drum', 
-    icon: '🛢️', 
-    lengthIn: 24, 
-    widthIn: 24, 
-    heightIn: 36, 
-    weightLbs: 484, 
-    category: 'heavy', 
-    group: 'Drums' 
-  },
-  { 
-    name: '30-Gal Drum', 
-    icon: '🛢️', 
-    lengthIn: 20, 
-    widthIn: 20, 
-    heightIn: 30, 
-    weightLbs: 265, 
-    category: 'heavy', 
-    group: 'Drums' 
-  },
-  { 
-    name: 'Chemical Drum', 
-    icon: '⚠️', 
-    lengthIn: 24, 
-    widthIn: 24, 
-    heightIn: 36, 
-    weightLbs: 500, 
-    category: 'hazardous', 
-    group: 'Drums' 
-  },
-
-  // ===== MACHINERY =====
-  { 
-    name: 'Small Motor', 
-    icon: '⚙️', 
-    lengthIn: 30, 
-    widthIn: 24, 
-    heightIn: 24, 
-    weightLbs: 600, 
-    category: 'heavy', 
-    group: 'Machinery' 
-  },
-  { 
-    name: 'Generator', 
-    icon: '⚙️', 
-    lengthIn: 48, 
-    widthIn: 30, 
-    heightIn: 36, 
-    weightLbs: 1500, 
-    category: 'heavy', 
-    group: 'Machinery' 
-  },
-  { 
-    name: 'Compressor', 
-    icon: '⚙️', 
-    lengthIn: 36, 
-    widthIn: 36, 
-    heightIn: 42, 
-    weightLbs: 2000, 
-    category: 'heavy', 
-    group: 'Machinery' 
-  },
-
-  // ===== FRAGILE ITEMS =====
-  { 
-    name: 'Electronics Crate', 
-    icon: '💻', 
-    lengthIn: 36, 
-    widthIn: 24, 
-    heightIn: 30, 
-    weightLbs: 120, 
-    category: 'fragile', 
-    group: 'Fragile' 
-  },
-  { 
-    name: 'Glass Panels', 
-    icon: '🪟', 
-    lengthIn: 48, 
-    widthIn: 6, 
-    heightIn: 72, 
-    weightLbs: 350, 
-    category: 'fragile', 
-    group: 'Fragile' 
-  },
-  { 
-    name: 'Art Crate', 
-    icon: '🎨', 
-    lengthIn: 60, 
-    widthIn: 6, 
-    heightIn: 48, 
-    weightLbs: 80, 
-    category: 'fragile', 
-    group: 'Fragile' 
-  },
-
-  // ===== PERISHABLE ITEMS =====
-  { 
-    name: 'Produce Crate', 
-    icon: '🍎', 
-    lengthIn: 24, 
-    widthIn: 18, 
-    heightIn: 12, 
-    weightLbs: 45, 
-    category: 'perishable', 
-    group: 'Perishable' 
-  },
-  { 
-    name: 'Cold Box', 
-    icon: '❄️', 
-    lengthIn: 48, 
-    widthIn: 40, 
-    heightIn: 42, 
-    weightLbs: 300, 
-    category: 'perishable', 
-    group: 'Perishable' 
-  },
-  { 
-    name: 'Wine Case', 
-    icon: '🍷', 
-    lengthIn: 20, 
-    widthIn: 14, 
-    heightIn: 14, 
-    weightLbs: 40, 
-    category: 'fragile', 
-    group: 'Perishable' 
-  },
-
-  // ===== FURNITURE =====
-  { 
-    name: 'Sofa (boxed)', 
-    icon: '🛋️', 
-    lengthIn: 84, 
-    widthIn: 36, 
-    heightIn: 36, 
-    weightLbs: 180, 
-    category: 'general', 
-    group: 'Furniture' 
-  },
-  { 
-    name: 'Dining Table', 
-    icon: '🪑', 
-    lengthIn: 72, 
-    widthIn: 42, 
-    heightIn: 8, 
-    weightLbs: 120, 
-    category: 'general', 
-    group: 'Furniture' 
-  },
-  { 
-    name: 'Mattress (Queen)', 
-    icon: '🛏️', 
-    lengthIn: 80, 
-    widthIn: 60, 
-    heightIn: 12, 
-    weightLbs: 85, 
-    category: 'general', 
-    group: 'Furniture' 
-  },
-  { 
-    name: 'Bookshelf', 
-    icon: '📚', 
-    lengthIn: 36, 
-    widthIn: 12, 
-    heightIn: 72, 
-    weightLbs: 90, 
-    category: 'general', 
-    group: 'Furniture' 
-  },
-
   // ===== INDUSTRIAL =====
   {
     name: 'SurePak',

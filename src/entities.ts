@@ -13,6 +13,8 @@ import * as THREE from "three";
 import {
   CargoItem,
   ContainerSpec,
+  HazmatLevel,
+  HAZMAT_CLASSES,
 } from "./definitions";
 import { inchesToUnits } from "./utils";
 
@@ -149,6 +151,108 @@ export function createFloorGrid(spec: ContainerSpec, gridSize: number): THREE.Gr
 // ============================================================================
 
 /**
+ * Builds UN/DOT hazmat diamond placards on all four vertical faces of a cargo box.
+ * Each face gets a border diamond (in the class text/contrast color) and an inner
+ * fill diamond (in the class background color).
+ *
+ * @param l - Box length in Three.js units
+ * @param h - Box height in Three.js units
+ * @param w - Box width in Three.js units
+ * @param hazmatLevel - The UN/DOT class to display
+ * @returns THREE.Group containing all placard meshes
+ */
+function createHazmatPlacardGroup(
+  l: number,
+  h: number,
+  w: number,
+  hazmatLevel: HazmatLevel
+): THREE.Group {
+  const pGroup = new THREE.Group();
+  pGroup.name = 'hazmat-placard';
+
+  const info = HAZMAT_CLASSES[hazmatLevel];
+  const eps = 0.004; // small Z-fighting offset to push placards just outside each face
+
+  // Shared materials (DoubleSide so normal direction doesn't matter)
+  const borderMat = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(info.textColor),
+    side: THREE.DoubleSide,
+    depthWrite: false,
+    transparent: true,
+    opacity: 0.92,
+  });
+  const fillMat = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(info.color),
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+
+  /** Creates a diamond (rotated square) ShapeGeometry of the given half-size. */
+  const makeDiamond = (halfSize: number): THREE.ShapeGeometry => {
+    const s = new THREE.Shape();
+    s.moveTo(0, halfSize);   // top
+    s.lineTo(halfSize, 0);   // right
+    s.lineTo(0, -halfSize);  // bottom
+    s.lineTo(-halfSize, 0);  // left
+    s.closePath();
+    return new THREE.ShapeGeometry(s);
+  };
+
+  /**
+   * Adds a two-layer placard (border + fill) at a given position/rotation.
+   * The placard geometry lies in the XY plane; rotY rotates it to align with
+   * the target face.
+   */
+  const addPlacard = (
+    size: number,
+    px: number, py: number, pz: number,
+    rotY: number,
+    outwardDir: THREE.Vector3,
+  ) => {
+    // Border (slightly larger, sits just behind the fill along the outward dir)
+    const borderGeom = makeDiamond(size * 0.55);
+    const borderMesh = new THREE.Mesh(borderGeom, borderMat);
+    borderMesh.position.set(px, py, pz);
+    borderMesh.rotation.y = rotY;
+    pGroup.add(borderMesh);
+
+    // Fill (sits a hair further outward to avoid z-fighting with border)
+    const fillGeom = makeDiamond(size * 0.48);
+    const fillMesh = new THREE.Mesh(fillGeom, fillMat);
+    fillMesh.position.set(
+      px + outwardDir.x * eps,
+      py + outwardDir.y * eps,
+      pz + outwardDir.z * eps,
+    );
+    fillMesh.rotation.y = rotY;
+    pGroup.add(fillMesh);
+  };
+
+  // Compute reasonable placard size for each pair of faces
+  // (clamped so it never becomes absurdly large)
+  const zFace = Math.min(Math.min(l, h) * 0.38, 0.16); // size for Z faces
+  const xFace = Math.min(Math.min(w, h) * 0.38, 0.16); // size for X faces
+
+  // ── Z = 0 face (front) ────────────────────────────────────────────────────
+  // PlaneGeometry in XY, rotY = Math.PI → normal points -Z (outward)
+  addPlacard(zFace, l / 2, h / 2, -eps, Math.PI, new THREE.Vector3(0, 0, -1));
+
+  // ── Z = w face (back) ─────────────────────────────────────────────────────
+  // rotY = 0 → normal points +Z (outward)
+  addPlacard(zFace, l / 2, h / 2, w + eps, 0, new THREE.Vector3(0, 0, 1));
+
+  // ── X = 0 face (left) ─────────────────────────────────────────────────────
+  // rotY = -π/2 → normal points -X (outward)
+  addPlacard(xFace, -eps, h / 2, w / 2, -Math.PI / 2, new THREE.Vector3(-1, 0, 0));
+
+  // ── X = l face (right) ────────────────────────────────────────────────────
+  // rotY = π/2 → normal points +X (outward)
+  addPlacard(xFace, l + eps, h / 2, w / 2, Math.PI / 2, new THREE.Vector3(1, 0, 0));
+
+  return pGroup;
+}
+
+/**
  * Creates the 3D mesh for a cargo item.
  * Includes:
  * - Solid box with physically-based material and color
@@ -232,6 +336,12 @@ export function createItemMesh(item: CargoItem): THREE.Group {
     const arrowGeom = new THREE.BufferGeometry().setFromPoints(arrowPoints);
     const arrowLine = new THREE.Line(arrowGeom, arrowMat);
     group.add(arrowLine);
+  }
+
+  // Add hazmat placard diamonds on all four vertical faces if classified
+  if (item.hazmatLevel && item.hazmatLevel !== 'none') {
+    const placard = createHazmatPlacardGroup(l, h, w, item.hazmatLevel);
+    group.add(placard);
   }
 
   // Position the group at the item's location in the container

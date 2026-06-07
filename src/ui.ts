@@ -29,6 +29,8 @@ import {
   GRID_SIZES,
   DEFAULT_GRID_SIZE,
   StackingRule,
+  HazmatLevel,
+  HAZMAT_CLASSES,
 } from "./definitions";
 import {
   calculateUtilization,
@@ -73,7 +75,7 @@ export interface UICallbacks {
   onRotateItem: (id: string, rotationType: 'y' | 'tipForward' | 'tipSide') => void;
   onToggleTheme: () => void;
   onToggleLabels: () => void;
-  onEditItem: (id: string, changes: Partial<Pick<CargoItem, 'label' | 'lengthIn' | 'widthIn' | 'heightIn' | 'weightLbs' | 'category' | 'color' | 'acceptsOnTop' | 'canStackOn'>>) => void;
+  onEditItem: (id: string, changes: Partial<Pick<CargoItem, 'label' | 'lengthIn' | 'widthIn' | 'heightIn' | 'weightLbs' | 'category' | 'color' | 'acceptsOnTop' | 'canStackOn' | 'hazmatLevel'>>) => void;
   onSaveLoad: () => void;
   onLoadFile: () => void;
 }
@@ -142,6 +144,24 @@ async function saveUserLibrary(): Promise<void> {
  */
 function rebuildAllLibrary(): void {
   allLibraryItems = [...DEFAULT_LIBRARY, ...userLibrary];
+}
+
+// ============================================================================
+// HAZMAT SELECT HELPER
+// ============================================================================
+
+/**
+ * Builds the <select> HTML for choosing a UN/DOT hazmat class.
+ * @param id - The element id to assign to the <select>
+ * @param selected - The currently-selected HazmatLevel (default 'none')
+ */
+function buildHazmatSelectHTML(id: string, selected: HazmatLevel = 'none'): string {
+  const options = (Object.keys(HAZMAT_CLASSES) as HazmatLevel[]).map(key => {
+    const info = HAZMAT_CLASSES[key];
+    const label = info.classNum === 0 ? 'None (no hazmat)' : info.label;
+    return `<option value="${key}" ${selected === key ? 'selected' : ''}>${label}</option>`;
+  }).join('');
+  return `<select id="${id}" style="width:100%">${options}</select>`;
 }
 
 // ============================================================================
@@ -372,6 +392,10 @@ export function buildUI(callbacks: UICallbacks): void {
       <div class="form-row" style="margin-top:6px">
         ${buildStackingRuleHTML('item-aot', 'Accepts on Top', 'all')}
         ${buildStackingRuleHTML('item-cso', 'Can Stack On', 'all')}
+      </div>
+      <div class="form-group" style="margin-top:6px">
+        <label>Hazmat Class (UN/DOT)</label>
+        ${buildHazmatSelectHTML('item-hazmat', 'none')}
       </div>
       <button class="btn btn-primary btn-full" id="btn-add-item" style="margin-top:6px">+ Add to Container</button>
     </div>
@@ -710,7 +734,8 @@ export function buildUI(callbacks: UICallbacks): void {
 
     const acceptsOnTop = readStackingRule('item-aot');
     const canStackOn = readStackingRule('item-cso');
-    callbacks.onAddItem({ label, category, lengthIn, widthIn, heightIn, weightLbs, acceptsOnTop, canStackOn });
+    const hazmatLevel = (document.getElementById('item-hazmat') as HTMLSelectElement).value as HazmatLevel;
+    callbacks.onAddItem({ label, category, lengthIn, widthIn, heightIn, weightLbs, acceptsOnTop, canStackOn, hazmatLevel });
 
     (document.getElementById('item-label') as HTMLInputElement).value = '';
     (document.getElementById('item-length') as HTMLInputElement).value = '';
@@ -970,6 +995,7 @@ function showLibraryNamingModal(def: LibraryItemDef, callbacks: UICallbacks): vo
         category: def.category,
         acceptsOnTop: def.acceptsOnTop ?? 'all',
         canStackOn: def.canStackOn ?? 'all',
+        hazmatLevel: def.hazmatLevel ?? 'none',
       });
     }
 
@@ -1061,6 +1087,11 @@ export function showEditItemModal(item: CargoItem, callbacks: UICallbacks): void
         ${buildStackingRuleHTML('edit-cso', 'Can Stack On', item.canStackOn ?? 'all')}
       </div>
 
+      <div class="form-group" style="margin-top:8px">
+        <label>Hazmat Class (UN/DOT)</label>
+        ${buildHazmatSelectHTML('edit-hazmat', (item.hazmatLevel ?? 'none') as HazmatLevel)}
+      </div>
+
       <div id="edit-validation-msg" style="margin-top:8px;min-height:24px"></div>
 
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
@@ -1137,7 +1168,7 @@ export function showEditItemModal(item: CargoItem, callbacks: UICallbacks): void
       return;
     }
 
-    const changes: Partial<Pick<CargoItem, 'label' | 'lengthIn' | 'widthIn' | 'heightIn' | 'weightLbs' | 'category' | 'color' | 'acceptsOnTop' | 'canStackOn'>> = {};
+    const changes: Partial<Pick<CargoItem, 'label' | 'lengthIn' | 'widthIn' | 'heightIn' | 'weightLbs' | 'category' | 'color' | 'acceptsOnTop' | 'canStackOn' | 'hazmatLevel'>> = {};
     
     if (label !== item.label) changes.label = label;
     if (category !== item.category) changes.category = category;
@@ -1151,6 +1182,9 @@ export function showEditItemModal(item: CargoItem, callbacks: UICallbacks): void
     const newCso = readStackingRule('edit-cso');
     if (JSON.stringify(newAot) !== JSON.stringify(item.acceptsOnTop ?? 'all')) changes.acceptsOnTop = newAot;
     if (JSON.stringify(newCso) !== JSON.stringify(item.canStackOn ?? 'all')) changes.canStackOn = newCso;
+
+    const newHazmat = (document.getElementById('edit-hazmat') as HTMLSelectElement).value as HazmatLevel;
+    if (newHazmat !== (item.hazmatLevel ?? 'none')) changes.hazmatLevel = newHazmat;
 
     if (Object.keys(changes).length === 0) {
       overlay.remove();
@@ -1215,6 +1249,7 @@ export function updateItemsList(
           <span class="item-color" style="background:${item.color};opacity:${item.visible ? 1 : 0.3}"></span>
           <span class="item-name-text" style="opacity:${item.visible ? 1 : 0.5}">${item.label}</span>
           <span class="category-badge ${item.category}">${item.category}</span>
+          ${item.hazmatLevel && item.hazmatLevel !== 'none' ? (() => { const hi = HAZMAT_CLASSES[item.hazmatLevel!]; return `<span style="display:inline-flex;align-items:center;gap:2px;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:${hi.color};color:${hi.textColor};border:1px solid rgba(0,0,0,0.15)">⚠ ${hi.shortLabel}</span>`; })() : ''}
           ${rotLabel ? `<span class="rotation-badge">${rotLabel}</span>` : ''}
         </span>
         <div class="item-actions">
@@ -1312,6 +1347,7 @@ export function showItemInfo(item: CargoItem | null, gridSize: number): void {
       <div class="info-row"><span class="info-label">Position Y</span><span class="info-value">${item.posY.toFixed(0)}"</span></div>
       <div class="info-row"><span class="info-label">Position Z</span><span class="info-value">${item.posZ.toFixed(0)}"</span></div>
       <div class="info-row"><span class="info-label">Rotation</span><span class="info-value">${rotLabel || '0°'} ${item.rotationY > 0 ? `<span class="rotation-badge">${rotLabel}</span>` : ''}</span></div>
+      ${item.hazmatLevel && item.hazmatLevel !== 'none' ? (() => { const hi = HAZMAT_CLASSES[item.hazmatLevel!]; return `<div class="info-row"><span class="info-label">Hazmat</span><span class="info-value"><span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:${hi.color};color:${hi.textColor};border:1px solid rgba(0,0,0,0.15)">⚠ ${hi.label}</span></span></div>`; })() : ''}
       
       <div style="margin-top:10px">
         <button class="btn btn-sm btn-primary btn-full" id="info-edit-btn" style="margin-bottom:8px">Edit Properties</button>
