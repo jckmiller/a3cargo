@@ -61,7 +61,11 @@ router.post('/', requireAuth, requireEditor, (req, res) => {
 
 // ── GET /api/projects/:id ─────────────────────────────────────────────────────
 router.get('/:id', requireAuth, (req, res) => {
-  const project = stmts.getProject.get(Number(req.params.id));
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'Invalid project id' });
+  }
+  const project = stmts.getProject.get(id);
   if (!project) {
     return res.status(404).json({ error: 'Project not found' });
   }
@@ -85,6 +89,9 @@ router.get('/:id', requireAuth, (req, res) => {
 // ── PUT /api/projects/:id ─────────────────────────────────────────────────────
 router.put('/:id', requireAuth, requireEditor, (req, res) => {
   const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'Invalid project id' });
+  }
   const existing = stmts.getProject.get(id);
   if (!existing) {
     return res.status(404).json({ error: 'Project not found' });
@@ -113,6 +120,9 @@ router.put('/:id', requireAuth, requireEditor, (req, res) => {
 // ── DELETE /api/projects/:id ──────────────────────────────────────────────────
 router.delete('/:id', requireAuth, requireEditor, (req, res) => {
   const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'Invalid project id' });
+  }
   const existing = stmts.getProject.get(id);
   if (!existing) {
     return res.status(404).json({ error: 'Project not found' });
@@ -125,6 +135,9 @@ router.delete('/:id', requireAuth, requireEditor, (req, res) => {
 // ── GET /api/projects/:id/viewers ─────────────────────────────────────────────
 router.get('/:id/viewers', requireAuth, requireAdmin, (req, res) => {
   const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'Invalid project id' });
+  }
   if (!stmts.getProject.get(id)) {
     return res.status(404).json({ error: 'Project not found' });
   }
@@ -141,6 +154,9 @@ router.get('/:id/viewers', requireAuth, requireAdmin, (req, res) => {
 // instead of requiring a separate editor-role PUT /api/projects/:id call.
 router.put('/:id/viewers', requireAuth, requireAdmin, (req, res) => {
   const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'Invalid project id' });
+  }
   if (!stmts.getProject.get(id)) {
     return res.status(404).json({ error: 'Project not found' });
   }
@@ -150,18 +166,32 @@ router.put('/:id/viewers', requireAuth, requireAdmin, (req, res) => {
     return res.status(400).json({ error: 'userIds must be an array' });
   }
 
-  // Replace viewers (and optionally update visibility) in one transaction
-  const replaceViewers = require('../db').db.transaction((projId, ids, newVisibility) => {
-    if (newVisibility && ['public', 'restricted'].includes(newVisibility)) {
-      stmts.updateProjectVisibility.run(newVisibility, projId);
-    }
-    stmts.clearProjectViewers.run(projId);
-    for (const uid of ids) {
-      stmts.addProjectViewer.run(projId, uid);
-    }
-  });
+  // Sanitise userIds — only accept positive integers so we never pass NaN or
+  // garbage values to the prepared statement (which could throw or be silently
+  // ignored depending on the SQLite FK mode).
+  const safeIds = userIds
+    .map(uid => Number(uid))
+    .filter(uid => Number.isInteger(uid) && uid > 0);
 
-  replaceViewers(id, userIds, visibility);
+  // Replace viewers (and optionally update visibility) in one transaction.
+  // Wrapped in try/catch so any SQLite error surfaces as a 500 rather than
+  // silently falling through to the server-level 404 catch-all.
+  try {
+    const replaceViewers = require('../db').db.transaction((projId, ids, newVisibility) => {
+      if (newVisibility && ['public', 'restricted'].includes(newVisibility)) {
+        stmts.updateProjectVisibility.run(newVisibility, projId);
+      }
+      stmts.clearProjectViewers.run(projId);
+      for (const uid of ids) {
+        stmts.addProjectViewer.run(projId, uid);
+      }
+    });
+
+    replaceViewers(id, safeIds, visibility);
+  } catch (err) {
+    console.error('[projects] replaceViewers transaction failed:', err);
+    return res.status(500).json({ error: 'Failed to update viewer access: ' + (err.message || err) });
+  }
 
   const viewers = stmts.listProjectViewers.all(id);
   return res.json(viewers);

@@ -51,6 +51,16 @@ app.use('/api/users', require('./routes/users'));
 // Health-check
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 
+// ── Error handler (must be 4-argument to be treated as error middleware) ───────
+// Without this, uncaught synchronous errors in route handlers fall through to
+// the 404 catch-all below, returning a misleading "Not found" response instead
+// of a proper 500.
+// eslint-disable-next-line no-unused-vars
+app.use((err, _req, res, _next) => {
+  console.error('[API error]', err);
+  res.status(500).json({ error: err.message || 'Internal server error' });
+});
+
 // 404 fallback for unknown /api/* paths
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
 
