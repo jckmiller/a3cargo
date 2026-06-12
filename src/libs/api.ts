@@ -230,10 +230,14 @@ export async function apiGetProjectViewers(projectId: number): Promise<ProjectVi
   return request<ProjectViewerEntry[]>(`/projects/${projectId}/viewers`);
 }
 
-/** Replace the full viewer grant list for a project. Admin-only. */
-export async function apiSetProjectViewers(projectId: number, userIds: number[]): Promise<ProjectViewerEntry[]> {
+/** Replace the full viewer grant list for a project, and optionally update its visibility. Admin-only. */
+export async function apiSetProjectViewers(
+  projectId: number,
+  userIds: number[],
+  visibility?: 'public' | 'restricted',
+): Promise<ProjectViewerEntry[]> {
   return request<ProjectViewerEntry[]>(`/projects/${projectId}/viewers`, {
     method: 'PUT',
-    body: JSON.stringify({ userIds }),
+    body: JSON.stringify({ userIds, ...(visibility ? { visibility } : {}) }),
   });
 }

@@ -134,27 +134,34 @@ router.get('/:id/viewers', requireAuth, requireAdmin, (req, res) => {
 
 // ── PUT /api/projects/:id/viewers ─────────────────────────────────────────────
 // Replaces the full viewer grant list for a project.
-// Body: { userIds: number[] }
+// Body: { userIds: number[], visibility?: 'public' | 'restricted' }
+//
+// Optionally updates the project visibility in the same transaction so callers
+// (e.g. the Manage Access modal) can do everything in one admin-only request
+// instead of requiring a separate editor-role PUT /api/projects/:id call.
 router.put('/:id/viewers', requireAuth, requireAdmin, (req, res) => {
   const id = Number(req.params.id);
   if (!stmts.getProject.get(id)) {
     return res.status(404).json({ error: 'Project not found' });
   }
 
-  const { userIds } = req.body || {};
+  const { userIds, visibility } = req.body || {};
   if (!Array.isArray(userIds)) {
     return res.status(400).json({ error: 'userIds must be an array' });
   }
 
-  // Replace in one transaction
-  const replaceViewers = require('../db').db.transaction((projId, ids) => {
+  // Replace viewers (and optionally update visibility) in one transaction
+  const replaceViewers = require('../db').db.transaction((projId, ids, newVisibility) => {
+    if (newVisibility && ['public', 'restricted'].includes(newVisibility)) {
+      stmts.updateProjectVisibility.run(newVisibility, projId);
+    }
     stmts.clearProjectViewers.run(projId);
     for (const uid of ids) {
       stmts.addProjectViewer.run(projId, uid);
     }
   });
 
-  replaceViewers(id, userIds);
+  replaceViewers(id, userIds, visibility);
 
   const viewers = stmts.listProjectViewers.all(id);
   return res.json(viewers);

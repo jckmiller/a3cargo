@@ -2436,7 +2436,8 @@ async function showManageAccessModal(
     `).join('');
   }
 
-  // Save
+  // Save — a single admin-only PUT /projects/:id/viewers call that sets both
+  // the viewer grants and the visibility in one atomic request.
   document.getElementById('access-save')!.addEventListener('click', async () => {
     const newVisibility = visibilitySelect.value as 'public' | 'restricted';
     const saveBtn = document.getElementById('access-save') as HTMLButtonElement;
@@ -2445,14 +2446,17 @@ async function showManageAccessModal(
     errorEl.style.display = 'none';
 
     try {
-      // 1. Update visibility
-      await apiUpdateProject(projectId, { visibility: newVisibility });
-
-      // 2. Update viewer grants (only meaningful when restricted, but safe to set always)
       const checkedIds = Array.from(
         viewersList.querySelectorAll<HTMLInputElement>('input[type="checkbox"]:checked')
       ).map(cb => Number(cb.dataset.uid));
-      await apiSetProjectViewers(projectId, newVisibility === 'restricted' ? checkedIds : []);
+
+      // Pass visibility alongside userIds so the backend handles everything
+      // in one atomic, admin-only request — no separate editor-role call needed.
+      await apiSetProjectViewers(
+        projectId,
+        newVisibility === 'restricted' ? checkedIds : [],
+        newVisibility,
+      );
 
       overlay.remove();
       showToast('Access settings saved', 'success');
