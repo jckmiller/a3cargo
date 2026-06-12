@@ -405,19 +405,27 @@ export function getWeightDistribution(
   let front = 0, back = 0, left = 0, right = 0;
   let totalW = 0;
 
-  // Classify each item's weight based on its center position
+  // Distribute each item's weight proportionally based on how much of its
+  // physical footprint falls on each side of the midpoint (lever-rule method).
+  // This avoids cliff-edge jumps where a large item's entire weight flips
+  // from one half to the other due to a tiny position change near the midpoint.
   for (const item of items) {
-    const centerX = item.posX + item.lengthIn / 2;
-    const centerZ = item.posZ + item.widthIn / 2;
-    
-    // Front/back distribution (X axis)
-    if (centerX < midLength) front += item.weightLbs;
-    else back += item.weightLbs;
-    
-    // Left/right distribution (Z axis)
-    if (centerZ < midWidth) left += item.weightLbs;
-    else right += item.weightLbs;
-    
+    // Front/back: proportion of item length that lies in the front half (X axis)
+    const itemFrontEdge  = Math.max(item.posX, 0);
+    const itemBackEdge   = Math.min(item.posX + item.lengthIn, container.lengthIn);
+    const frontOverlap   = Math.max(0, Math.min(midLength, itemBackEdge) - itemFrontEdge);
+    const frontFraction  = item.lengthIn > 0 ? frontOverlap / item.lengthIn : 0.5;
+    front += item.weightLbs * frontFraction;
+    back  += item.weightLbs * (1 - frontFraction);
+
+    // Left/right: proportion of item width that lies in the left half (Z axis)
+    const itemLeftEdge   = Math.max(item.posZ, 0);
+    const itemRightEdge  = Math.min(item.posZ + item.widthIn, container.widthIn);
+    const leftOverlap    = Math.max(0, Math.min(midWidth, itemRightEdge) - itemLeftEdge);
+    const leftFraction   = item.widthIn > 0 ? leftOverlap / item.widthIn : 0.5;
+    left  += item.weightLbs * leftFraction;
+    right += item.weightLbs * (1 - leftFraction);
+
     totalW += item.weightLbs;
   }
 
