@@ -284,7 +284,7 @@ export const GRID_SIZES = [1, 2, 3, 4, 6, 8, 12, 24];
  * Default grid size in inches.
  * 6 inches provides good balance between precision and ease of use.
  */
-export const DEFAULT_GRID_SIZE = 6;
+export const DEFAULT_GRID_SIZE = 1;
 
 /**
  * Scale factor for converting inches to Three.js units.
