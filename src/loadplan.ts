@@ -18,6 +18,7 @@ import {
   CargoItem,
   ContainerSpec,
   CATEGORY_COLORS,
+  HAZMAT_CLASSES,
 } from "./definitions";
 import { getLogoDataUrl } from "./logo";
 import {
@@ -254,7 +255,17 @@ function buildTips(
     tips.push('FRAGILE: Handle with care. Avoid placing heavy items on top.');
   }
   if (item.category === 'hazardous') {
-    tips.push('HAZARDOUS: Follow IMDG/DOT regulations. Maintain required separation distances.');
+    // Enrich hazmat tip with specific UN class if available
+    if (item.hazmatLevel && item.hazmatLevel !== 'none') {
+      const hInfo = HAZMAT_CLASSES[item.hazmatLevel];
+      tips.push(`⚠ HAZMAT ${hInfo.label}: Follow IMDG/DOT regulations. Maintain required separation distances. Placard with Class ${hInfo.classNum} markings.`);
+    } else {
+      tips.push('⚠ HAZMAT — HAZARDOUS: Follow IMDG/DOT regulations. Maintain required separation distances.');
+    }
+  } else if (item.hazmatLevel && item.hazmatLevel !== 'none') {
+    // Item not in hazardous category but explicitly classified — still warn
+    const hInfo = HAZMAT_CLASSES[item.hazmatLevel];
+    tips.push(`⚠ HAZMAT ${hInfo.label}: This item carries a UN/DOT Class ${hInfo.classNum} hazmat classification. Follow all applicable IMDG/DOT handling requirements.`);
   }
   if (item.category === 'perishable') {
     tips.push('PERISHABLE: Ensure cold chain is maintained. Load last if possible.');
@@ -329,7 +340,29 @@ export function generateLoadPlanHTML(
   const grossWeight = netWeight + container.tareWeightLbs;
   const availWeight = container.maxWeightLbs - netWeight;
 
-  let html = `
+  // Collect items with any hazmat classification
+  const hazmatItems = items.filter(i => i.hazmatLevel && i.hazmatLevel !== 'none');
+
+  let html = ``;
+
+  // ── HAZMAT Alert Banner (shown when any hazmat items are present) ───────────
+  if (hazmatItems.length > 0) {
+    const hazmatBadges = hazmatItems.map(item => {
+      const hi = HAZMAT_CLASSES[item.hazmatLevel!];
+      return `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;background:${hi.color};color:${hi.textColor};font-weight:700;font-size:10px;border:1px solid rgba(0,0,0,0.15)">
+        ⚠ CLASS ${hi.classNum} — ${item.label}
+      </span>`;
+    }).join('');
+    html += `
+      <div style="background:rgba(220,38,38,0.12);border:1.5px solid rgba(220,38,38,0.45);border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:12px;font-weight:800;color:#ef4444;letter-spacing:0.5px">⚠ HAZARDOUS MATERIALS PRESENT — ${hazmatItems.length} item${hazmatItems.length > 1 ? 's' : ''}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:5px">${hazmatBadges}</div>
+        <div style="font-size:10px;color:rgba(239,68,68,0.85)">Ensure all IMDG/DOT regulations are followed. Verify separation requirements before loading.</div>
+      </div>
+    `;
+  }
+
+  html += `
     <div class="loadplan-summary">
       <div class="loadplan-stat">
         <div class="lp-stat-value">${steps.length}</div>
@@ -386,9 +419,17 @@ export function generateLoadPlanHTML(
   for (const step of steps) {
     const catColor = CATEGORY_COLORS[step.item.category] || '#5b8af5';
     const rotLabel = getRotationLabel(step.item);
+    const isHazmat = step.item.hazmatLevel && step.item.hazmatLevel !== 'none';
+    const hazInfo = isHazmat ? HAZMAT_CLASSES[step.item.hazmatLevel!] : null;
+
+    // Build HAZMAT badge HTML for in-app step header
+    const hazmatBadgeHtml = hazInfo
+      ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:4px;background:${hazInfo.color};color:${hazInfo.textColor};font-weight:800;font-size:10px;letter-spacing:0.4px;border:1px solid rgba(0,0,0,0.18)">⚠ HAZMAT · CLASS ${hazInfo.classNum}</span>`
+      : '';
 
     html += `
-      <div class="loadplan-step" data-step="${step.stepNumber}">
+      <div class="loadplan-step${isHazmat ? ' step-hazmat' : ''}" data-step="${step.stepNumber}"
+           style="${isHazmat ? `border-left:3px solid ${hazInfo!.color};` : ''}">
         <div class="step-header">
           <div class="step-number" style="background:${catColor}">${step.stepNumber}</div>
           <div class="step-title">
@@ -396,6 +437,7 @@ export function generateLoadPlanHTML(
               <span class="item-color" style="background:${step.item.color}"></span>
               ${step.item.label}
               <span class="category-badge ${step.item.category}">${step.item.category}</span>
+              ${hazmatBadgeHtml}
               ${rotLabel ? `<span class="rotation-badge">${rotLabel}</span>` : ''}
             </div>
             <div class="step-item-specs">
@@ -441,7 +483,12 @@ export function generateLoadPlanHTML(
 
         ${step.tips.length > 0 ? `
           <div class="step-tips">
-            ${step.tips.map(tip => `<div class="step-tip">${tip}</div>`).join('')}
+            ${step.tips.map(tip => {
+              const isHazTip = tip.startsWith('⚠ HAZMAT');
+              return isHazTip
+                ? `<div class="step-tip" style="color:#ef4444;font-weight:700;background:rgba(239,68,68,0.08);border-radius:4px;padding:4px 8px;border-left:3px solid #ef4444">${tip}</div>`
+                : `<div class="step-tip">${tip}</div>`;
+            }).join('')}
           </div>
         ` : ''}
 
@@ -563,7 +610,15 @@ export function generatePrintableLoadPlan(
     .strategy li:last-child { border-bottom: none; }
     .progress-bar { width: 100%; height: 5px; background: #d4e4f7; border-radius: 3px; overflow: hidden; margin-top: 6px; }
     .progress-fill { height: 100%; background: linear-gradient(90deg, #1e40af, #059669); border-radius: 3px; }
-    @media print { body { padding: 14px; } .step { page-break-inside: avoid; } }
+    .hazmat-alert { border: 2px solid #dc2626; border-radius: 8px; padding: 12px 14px; margin-bottom: 16px; background: #fff5f5; page-break-inside: avoid; }
+    .hazmat-alert-title { font-size: 13px; font-weight: 800; color: #dc2626; margin-bottom: 8px; letter-spacing: 0.3px; }
+    .hazmat-alert-items { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .hazmat-badge { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 9px; font-weight: 800; border: 1px solid rgba(0,0,0,0.2); }
+    .hazmat-alert-note { font-size: 9px; color: #7f1d1d; line-height: 1.5; }
+    .step.step-hazmat { border-left: 3px solid #dc2626; }
+    .step-hazmat-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 8px; font-weight: 800; border: 1px solid rgba(0,0,0,0.2); margin-left: 6px; vertical-align: middle; }
+    .tip.hazmat-tip { color: #991b1b; font-weight: 700; background: #fef2f2; border-radius: 4px; padding: 3px 6px; border-left: 3px solid #dc2626; }
+    @media print { body { padding: 14px; } .step { page-break-inside: avoid; } .hazmat-alert { page-break-inside: avoid; } }
   </style>
 </head>
 <body>
@@ -594,14 +649,36 @@ export function generatePrintableLoadPlan(
     ${getLoadingStrategyPrintable(items, container)}
   </div>
 
+  ${(() => {
+    // ── Printable HAZMAT items section ────────────────────────────────────────
+    const pHazItems = items.filter(i => i.hazmatLevel && i.hazmatLevel !== 'none');
+    if (pHazItems.length === 0) return '';
+    const badges = pHazItems.map(item => {
+      const hi = HAZMAT_CLASSES[item.hazmatLevel!];
+      return `<span class="hazmat-badge" style="background:${hi.color};color:${hi.textColor}">HAZMAT CLASS ${hi.classNum} &mdash; ${item.label}</span>`;
+    }).join('');
+    return `
+    <div class="hazmat-alert">
+      <div class="hazmat-alert-title">HAZARDOUS MATERIALS PRESENT &mdash; ${pHazItems.length} item${pHazItems.length > 1 ? 's' : ''}</div>
+      <div class="hazmat-alert-items">${badges}</div>
+      <div class="hazmat-alert-note">All IMDG/DOT regulations must be observed. Verify separation requirements and proper placarding before loading hazardous items.</div>
+    </div>`;
+  })()}
+
   ${steps.map(step => {
     const catText = getCategoryText(step.item.category);
+    const isHm = step.item.hazmatLevel && step.item.hazmatLevel !== 'none';
+    const hi = isHm ? HAZMAT_CLASSES[step.item.hazmatLevel!] : null;
     return `
-    <div class="step">
+    <div class="step${isHm ? ' step-hazmat' : ''}" ${isHm ? `style="border-left:3px solid ${hi!.color}"` : ''}>
       <div class="step-head">
         <div class="step-num">${step.stepNumber}</div>
         <div class="step-info">
-          <div class="step-name">${step.item.label} <span class="cat ${step.item.category}">${catText}</span></div>
+          <div class="step-name">
+            ${step.item.label}
+            <span class="cat ${step.item.category}">${catText}</span>
+            ${hi ? `<span class="step-hazmat-badge" style="background:${hi.color};color:${hi.textColor}">HAZMAT CLASS ${hi.classNum}</span>` : ''}
+          </div>
           <div class="step-specs">${formatDimensions(step.item.lengthIn, step.item.widthIn, step.item.heightIn)} | ${step.item.weightLbs.toLocaleString()} lbs</div>
         </div>
         ${step.snapshotDataUrl ? `<div class="step-img"><img src="${step.snapshotDataUrl}" /></div>` : ''}
@@ -613,7 +690,10 @@ export function generatePrintableLoadPlan(
         <div class="pos-cell"><div class="plabel">Z Pos</div><div class="pvalue">${step.item.posZ.toFixed(0)}"</div></div>
         <div class="pos-cell"><div class="plabel">Cum. Wt</div><div class="pvalue">${step.cumulativeWeight.toLocaleString()} lbs</div></div>
       </div>
-      ${step.tips.length > 0 ? step.tips.map(t => `<div class="tip">${t}</div>`).join('') : ''}
+      ${step.tips.length > 0 ? step.tips.map(t => {
+        const isHazTip = t.startsWith('⚠ HAZMAT') || t.startsWith('HAZMAT');
+        return `<div class="tip${isHazTip ? ' hazmat-tip' : ''}">${t}</div>`;
+      }).join('') : ''}
       <div style="margin-top:6px">
         <div style="font-size:9px;color:#999;margin-bottom:3px">Progress: ${step.cumulativeUtilization.toFixed(1)}% volume</div>
         <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(step.cumulativeUtilization, 100)}%"></div></div>

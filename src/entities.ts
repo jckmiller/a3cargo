@@ -151,9 +151,91 @@ export function createFloorGrid(spec: ContainerSpec, gridSize: number): THREE.Gr
 // ============================================================================
 
 /**
- * Builds UN/DOT hazmat diamond placards on all four vertical faces of a cargo box.
- * Each face gets a border diamond (in the class text/contrast color) and an inner
- * fill diamond (in the class background color).
+ * Creates a canvas texture displaying a large HAZMAT warning with class number.
+ * Used to paint highly visible HAZMAT markings on cargo box faces.
+ *
+ * Layout (top→bottom):
+ *   ┌──────────────────────────┐
+ *   │  ▌▌▌ border stripe ▌▌▌  │  (textColor)
+ *   │  ⬛  HAZMAT             │  (large, bold, textColor on bgColor)
+ *   │      CLASS  X           │  (medium, classNum)
+ *   │  ▌▌▌ border stripe ▌▌▌  │
+ *   └──────────────────────────┘
+ *
+ * @param faceW - Face width in Three.js units (used for aspect ratio)
+ * @param faceH - Face height in Three.js units
+ * @param info  - HAZMAT class metadata (colors, classNum, label)
+ */
+function createHazmatCanvasTexture(
+  faceW: number,
+  faceH: number,
+  info: { color: string; textColor: string; classNum: number; label: string }
+): THREE.CanvasTexture {
+  const baseRes = 512;
+  const aspect = faceW / Math.max(faceH, 0.001);
+  let cW: number, cH: number;
+  if (aspect >= 1) {
+    cW = baseRes;
+    cH = Math.max(64, Math.round(baseRes / aspect));
+  } else {
+    cH = baseRes;
+    cW = Math.max(64, Math.round(baseRes * aspect));
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = cW;
+  canvas.height = cH;
+  const ctx = canvas.getContext('2d')!;
+
+  // Background fill (placard color)
+  ctx.fillStyle = info.color;
+  ctx.fillRect(0, 0, cW, cH);
+
+  // Bold border stripes top & bottom
+  const stripeH = Math.max(4, Math.round(cH * 0.07));
+  ctx.fillStyle = info.textColor;
+  ctx.fillRect(0, 0, cW, stripeH);
+  ctx.fillRect(0, cH - stripeH, cW, stripeH);
+
+  // Left & right border stripes
+  const stripeV = Math.max(3, Math.round(cW * 0.04));
+  ctx.fillRect(0, stripeH, stripeV, cH - stripeH * 2);
+  ctx.fillRect(cW - stripeV, stripeH, stripeV, cH - stripeH * 2);
+
+  // Thin inner border outline
+  const inset = stripeH + 2;
+  ctx.strokeStyle = info.textColor;
+  ctx.lineWidth = Math.max(1.5, cW * 0.008);
+  ctx.strokeRect(inset, inset, cW - inset * 2, cH - inset * 2);
+
+  // "HAZMAT" — large bold text
+  const hazFontSize = Math.round(Math.min(cH * 0.32, cW * 0.22));
+  ctx.fillStyle = info.textColor;
+  ctx.font = `900 ${hazFontSize}px Inter, Arial, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const hazY = cH * 0.38;
+  ctx.fillText('HAZMAT', cW / 2, hazY);
+
+  // CLASS X  — class number below
+  const clsFontSize = Math.round(hazFontSize * 0.55);
+  ctx.font = `700 ${clsFontSize}px Inter, Arial, sans-serif`;
+  const clsY = hazY + hazFontSize * 0.62;
+  if (info.classNum > 0) {
+    ctx.fillText(`CLASS  ${info.classNum}`, cW / 2, clsY);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/**
+ * Builds large HAZMAT text placards on all four vertical faces of a cargo box.
+ * Each face shows "HAZMAT / CLASS X" in the UN/DOT standard placard colors,
+ * replacing the older diamond-shape geometry approach.
  *
  * @param l - Box length in Three.js units
  * @param h - Box height in Three.js units
@@ -171,83 +253,50 @@ function createHazmatPlacardGroup(
   pGroup.name = 'hazmat-placard';
 
   const info = HAZMAT_CLASSES[hazmatLevel];
-  const eps = 0.004; // small Z-fighting offset to push placards just outside each face
-
-  // Shared materials (DoubleSide so normal direction doesn't matter)
-  const borderMat = new THREE.MeshBasicMaterial({
-    color: new THREE.Color(info.textColor),
-    side: THREE.DoubleSide,
-    depthWrite: false,
-    transparent: true,
-    opacity: 0.92,
-  });
-  const fillMat = new THREE.MeshBasicMaterial({
-    color: new THREE.Color(info.color),
-    side: THREE.DoubleSide,
-    depthWrite: false,
-  });
-
-  /** Creates a diamond (rotated square) ShapeGeometry of the given half-size. */
-  const makeDiamond = (halfSize: number): THREE.ShapeGeometry => {
-    const s = new THREE.Shape();
-    s.moveTo(0, halfSize);   // top
-    s.lineTo(halfSize, 0);   // right
-    s.lineTo(0, -halfSize);  // bottom
-    s.lineTo(-halfSize, 0);  // left
-    s.closePath();
-    return new THREE.ShapeGeometry(s);
-  };
+  const eps = 0.004; // slight outward offset to prevent z-fighting
 
   /**
-   * Adds a two-layer placard (border + fill) at a given position/rotation.
-   * The placard geometry lies in the XY plane; rotY rotates it to align with
-   * the target face.
+   * Creates a PlaneGeometry mesh with a canvas HAZMAT texture and positions it
+   * on the requested face.
+   * @param fw      - face width (Three.js units)
+   * @param fh      - face height (Three.js units)
+   * @param px/py/pz - centre position of the plane
+   * @param rotY    - rotation around Y axis to face outward
    */
-  const addPlacard = (
-    size: number,
+  const addFacePlacard = (
+    fw: number, fh: number,
     px: number, py: number, pz: number,
     rotY: number,
-    outwardDir: THREE.Vector3,
   ) => {
-    // Border (slightly larger, sits just behind the fill along the outward dir)
-    const borderGeom = makeDiamond(size * 0.55);
-    const borderMesh = new THREE.Mesh(borderGeom, borderMat);
-    borderMesh.position.set(px, py, pz);
-    borderMesh.rotation.y = rotY;
-    pGroup.add(borderMesh);
-
-    // Fill (sits a hair further outward to avoid z-fighting with border)
-    const fillGeom = makeDiamond(size * 0.48);
-    const fillMesh = new THREE.Mesh(fillGeom, fillMat);
-    fillMesh.position.set(
-      px + outwardDir.x * eps,
-      py + outwardDir.y * eps,
-      pz + outwardDir.z * eps,
-    );
-    fillMesh.rotation.y = rotY;
-    pGroup.add(fillMesh);
+    const texture = createHazmatCanvasTexture(fw, fh, info);
+    const mat = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    });
+    // Cover 88% of the face so there's a small gap at the edges
+    const geom = new THREE.PlaneGeometry(fw * 0.88, fh * 0.88);
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.position.set(px, py, pz);
+    mesh.rotation.y = rotY;
+    pGroup.add(mesh);
   };
 
-  // Compute reasonable placard size for each pair of faces
-  // (clamped so it never becomes absurdly large)
-  const zFace = Math.min(Math.min(l, h) * 0.38, 0.16); // size for Z faces
-  const xFace = Math.min(Math.min(w, h) * 0.38, 0.16); // size for X faces
+  // ── Front face  (Z = 0, outward -Z) ────────────────────────────────────────
+  addFacePlacard(l, h,  l / 2, h / 2, -eps,    Math.PI);
 
-  // ── Z = 0 face (front) ────────────────────────────────────────────────────
-  // PlaneGeometry in XY, rotY = Math.PI → normal points -Z (outward)
-  addPlacard(zFace, l / 2, h / 2, -eps, Math.PI, new THREE.Vector3(0, 0, -1));
+  // ── Back face   (Z = w, outward +Z) ────────────────────────────────────────
+  addFacePlacard(l, h,  l / 2, h / 2, w + eps, 0);
 
-  // ── Z = w face (back) ─────────────────────────────────────────────────────
-  // rotY = 0 → normal points +Z (outward)
-  addPlacard(zFace, l / 2, h / 2, w + eps, 0, new THREE.Vector3(0, 0, 1));
+  // ── Left face   (X = 0, outward -X) ────────────────────────────────────────
+  addFacePlacard(w, h, -eps,   h / 2, w / 2,   -Math.PI / 2);
 
-  // ── X = 0 face (left) ─────────────────────────────────────────────────────
-  // rotY = -π/2 → normal points -X (outward)
-  addPlacard(xFace, -eps, h / 2, w / 2, -Math.PI / 2, new THREE.Vector3(-1, 0, 0));
-
-  // ── X = l face (right) ────────────────────────────────────────────────────
-  // rotY = π/2 → normal points +X (outward)
-  addPlacard(xFace, l + eps, h / 2, w / 2, Math.PI / 2, new THREE.Vector3(1, 0, 0));
+  // ── Right face  (X = l, outward +X) ────────────────────────────────────────
+  addFacePlacard(w, h,  l + eps, h / 2, w / 2,  Math.PI / 2);
 
   return pGroup;
 }

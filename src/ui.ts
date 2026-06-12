@@ -1793,6 +1793,22 @@ export function showManifestModal(
 
       ${snapshotSectionHtml}
 
+      ${(() => {
+        // ── In-app HAZMAT alert block ──────────────────────────────────────────
+        const hmItems = items.filter(i => i.hazmatLevel && i.hazmatLevel !== 'none');
+        if (hmItems.length === 0) return '';
+        const badges = hmItems.map(item => {
+          const hi = HAZMAT_CLASSES[item.hazmatLevel!];
+          return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:4px;background:${hi.color};color:${hi.textColor};font-weight:800;font-size:10px;border:1px solid rgba(0,0,0,0.18)">⚠ HAZMAT Class ${hi.classNum} — ${item.label}</span>`;
+        }).join('');
+        return `
+          <div style="background:rgba(220,38,38,0.11);border:1.5px solid rgba(220,38,38,0.4);border-radius:8px;padding:11px 14px;margin-bottom:16px">
+            <div style="font-size:12px;font-weight:800;color:#ef4444;margin-bottom:7px;letter-spacing:0.4px">⚠ HAZARDOUS MATERIALS — ${hmItems.length} item${hmItems.length > 1 ? 's' : ''} in this load</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:7px">${badges}</div>
+            <div style="font-size:10px;color:rgba(239,68,68,0.8)">All IMDG/DOT regulations apply. Verify separation requirements and placard compliance before and during loading.</div>
+          </div>`;
+      })()}
+
       <h3>Item Details</h3>
       <div style="overflow-x:auto">
         <table class="manifest-table">
@@ -1801,6 +1817,7 @@ export function showManifestModal(
               <th>#</th>
               <th>Label</th>
               <th>Category</th>
+              <th>HAZMAT</th>
               <th>Dimensions (L×W×H)</th>
               <th>Weight</th>
               <th>Position (X, Y, Z)</th>
@@ -1809,18 +1826,25 @@ export function showManifestModal(
             </tr>
           </thead>
           <tbody>
-            ${items.map((item, i) => `
-              <tr>
+            ${items.map((item, i) => {
+              const isHm = item.hazmatLevel && item.hazmatLevel !== 'none';
+              const hi = isHm ? HAZMAT_CLASSES[item.hazmatLevel!] : null;
+              return `
+              <tr${isHm ? ` style="background:rgba(220,38,38,0.055)"` : ''}>
                 <td>${i + 1}</td>
                 <td style="color:var(--text-bright);font-family:'Inter',sans-serif;font-weight:600">${item.label}</td>
                 <td><span class="category-badge ${item.category}">${item.category}</span></td>
+                <td>${hi
+                  ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:4px;background:${hi.color};color:${hi.textColor};font-weight:800;font-size:9.5px;border:1px solid rgba(0,0,0,0.16)">⚠ Cl.${hi.classNum}</span>`
+                  : '<span style="color:var(--text-muted);font-size:10px">—</span>'
+                }</td>
                 <td>${item.lengthIn}" × ${item.widthIn}" × ${item.heightIn}"</td>
                 <td>${item.weightLbs.toLocaleString()} lbs</td>
                 <td>${item.posX.toFixed(0)}", ${item.posY.toFixed(0)}", ${item.posZ.toFixed(0)}"</td>
                 <td>${getRotationLabel(item) || '0°'}</td>
                 <td>${((item.lengthIn * item.widthIn * item.heightIn) / 1728).toFixed(1)} ft³</td>
-              </tr>
-            `).join('')}
+              </tr>`;
+            }).join('')}
           </tbody>
         </table>
       </div>
@@ -1888,6 +1912,20 @@ function printManifest(
     ? `<img src="${logoDataUrl}" alt="Logo" style="height:40px;width:auto;display:block;object-fit:contain;margin-bottom:4px" />`
     : '';
 
+  // ── Printable HAZMAT alert section ─────────────────────────────────────────
+  const printHazItems = items.filter(i => i.hazmatLevel && i.hazmatLevel !== 'none');
+  const hazmatAlertHtml = printHazItems.length > 0 ? (() => {
+    const badges = printHazItems.map(item => {
+      const hi = HAZMAT_CLASSES[item.hazmatLevel!];
+      return `<span style="display:inline-block;padding:3px 8px;border-radius:4px;font-size:9px;font-weight:800;background:${hi.color};color:${hi.textColor};border:1px solid rgba(0,0,0,0.2);margin:2px">HAZMAT CLASS ${hi.classNum} &mdash; ${item.label}</span>`;
+    }).join('');
+    return `<div style="border:2px solid #dc2626;border-radius:8px;padding:12px 14px;margin-bottom:16px;background:#fff5f5;page-break-inside:avoid">
+      <div style="font-size:13px;font-weight:800;color:#dc2626;margin-bottom:8px;letter-spacing:0.3px">HAZARDOUS MATERIALS PRESENT &mdash; ${printHazItems.length} item${printHazItems.length > 1 ? 's' : ''}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">${badges}</div>
+      <div style="font-size:9px;color:#7f1d1d;line-height:1.5">All IMDG/DOT regulations must be observed. Verify separation requirements and proper Class placarding before and during loading of all hazardous items.</div>
+    </div>`;
+  })() : '';
+
   const html = `<!DOCTYPE html>
 <html><head>
 <meta charset="UTF-8">
@@ -1900,12 +1938,15 @@ function printManifest(
 .header h1{font-size:22px;font-weight:800;color:#1e3a5f}.header .subtitle{font-size:11px;color:#4b6280;margin-top:2px}.header .date{font-size:11px;color:#666;text-align:right}
 table{width:100%;border-collapse:collapse;font-size:10px}th{text-align:left;padding:8px 10px;background:#f0f4fa;color:#1e3a5f;font-size:8.5px;font-weight:700;text-transform:uppercase;border-bottom:2px solid #c7d8f0}
 td{padding:7px 10px;border-bottom:1px solid #eef2f7;font-family:'JetBrains Mono',monospace;font-size:10px}
+tr.hazmat-row{background:#fff5f5}
+.hazmat-cell{display:inline-block;padding:2px 6px;border-radius:4px;font-size:8px;font-weight:800;border:1px solid rgba(0,0,0,0.18)}
 .footer{margin-top:24px;padding-top:12px;border-top:1px solid #c7d8f0;font-size:10px;color:#7a90aa;text-align:center}
 .snapshot{margin-bottom:18px;border:1px solid #c7d8f0;border-radius:6px;overflow:hidden;page-break-inside:avoid}
 .snapshot img{width:1200px;max-width:100%;height:auto;display:block}
 .snap-label{padding:5px 10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:#4b6280;background:#f0f4fa;border-bottom:1px solid #c7d8f0}
 .snapshots-section{margin-bottom:18px}
 .snapshots-heading{font-size:14px;font-weight:700;color:#1e3a5f;margin-bottom:10px}
+@media print{body{padding:14px}.snapshot{page-break-inside:avoid}}
 </style></head><body>
 <div class="header"><div class="header-brand">${logoHtml}<div><h1>Shipping Pro</h1><div class="subtitle">Container Loading Manifest</div></div></div>
 <div class="date">Container: <strong>${container.label}</strong><br>${container.lengthIn}" &times; ${container.widthIn}" &times; ${container.heightIn}"<br>${new Date().toLocaleString()}</div></div>
@@ -1915,10 +1956,17 @@ td{padding:7px 10px;border-bottom:1px solid #eef2f7;font-family:'JetBrains Mono'
   <div style="text-align:center"><div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:${(container.maxWeightLbs - totalWeight) < 0 ? '#dc2626' : '#059669'}">${(container.maxWeightLbs - totalWeight).toLocaleString()}</div><div style="font-size:8px;font-weight:700;text-transform:uppercase;color:#4b6280;letter-spacing:0.6px">Available (lbs)</div></div>
   <div style="text-align:center"><div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:#78350f">${container.maxWeightLbs.toLocaleString()}</div><div style="font-size:8px;font-weight:700;text-transform:uppercase;color:#4b6280;letter-spacing:0.6px">Max Payload (lbs)</div></div>
 </div>
-<br>
+${hazmatAlertHtml}
 ${snapshotHtmlBlocks ? `<div class="snapshots-section"><div class="snapshots-heading">3D View Snapshots</div>${snapshotHtmlBlocks}</div>` : ''}
-<table><thead><tr><th>#</th><th>Label</th><th>Category</th><th>Dimensions</th><th>Weight</th><th>Position</th><th>Volume</th></tr></thead><tbody>
-${items.map((item, i) => `<tr><td>${i+1}</td><td style="font-family:'Inter',sans-serif;font-weight:600">${item.label}</td><td>${item.category}</td><td>${item.lengthIn}" &times; ${item.widthIn}" &times; ${item.heightIn}"</td><td>${item.weightLbs.toLocaleString()} lbs</td><td>${item.posX.toFixed(0)}", ${item.posY.toFixed(0)}", ${item.posZ.toFixed(0)}"</td><td>${((item.lengthIn*item.widthIn*item.heightIn)/1728).toFixed(1)} ft&#179;</td></tr>`).join('')}
+<table><thead><tr><th>#</th><th>Label</th><th>Category</th><th>HAZMAT</th><th>Dimensions</th><th>Weight</th><th>Position</th><th>Volume</th></tr></thead><tbody>
+${items.map((item, i) => {
+  const isHm = item.hazmatLevel && item.hazmatLevel !== 'none';
+  const hi = isHm ? HAZMAT_CLASSES[item.hazmatLevel!] : null;
+  const hazCell = hi
+    ? `<span class="hazmat-cell" style="background:${hi.color};color:${hi.textColor}">CLASS ${hi.classNum}</span>`
+    : '&mdash;';
+  return `<tr${isHm ? ' class="hazmat-row"' : ''}><td>${i+1}</td><td style="font-family:'Inter',sans-serif;font-weight:600">${item.label}</td><td>${item.category}</td><td>${hazCell}</td><td>${item.lengthIn}" &times; ${item.widthIn}" &times; ${item.heightIn}"</td><td>${item.weightLbs.toLocaleString()} lbs</td><td>${item.posX.toFixed(0)}", ${item.posY.toFixed(0)}", ${item.posZ.toFixed(0)}"</td><td>${((item.lengthIn*item.widthIn*item.heightIn)/1728).toFixed(1)} ft&#179;</td></tr>`;
+}).join('')}
 </tbody></table>
 <div class="footer">A3 Shipping Pro &mdash; ${new Date().toLocaleString()}</div></body></html>`;
 

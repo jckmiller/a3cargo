@@ -16,7 +16,7 @@
  */
 
 import * as THREE from "three";
-import { CargoItem } from "./definitions";
+import { CargoItem, HAZMAT_CLASSES } from "./definitions";
 import { inchesToUnits } from "./utils";
 
 /**
@@ -165,7 +165,9 @@ export class ItemLabelManager {
   /**
    * Builds a complete label group for an item with labels on multiple faces.
    * Creates canvas textures and positions them on top, front, and side faces.
-   * 
+   * When the item has a hazmat classification, a prominent HAZMAT + class number
+   * stripe is drawn on every face label instead of the generic label shape.
+   *
    * @param item - Cargo item to build labels for
    * @returns THREE.Group containing all label planes
    */
@@ -176,6 +178,11 @@ export class ItemLabelManager {
     const l = inchesToUnits(item.lengthIn);
     const w = inchesToUnits(item.widthIn);
     const h = inchesToUnits(item.heightIn);
+
+    // Resolve hazmat info (null when not classified)
+    const hazmatInfo = (item.hazmatLevel && item.hazmatLevel !== 'none')
+      ? HAZMAT_CLASSES[item.hazmatLevel]
+      : null;
 
     // Format label text
     const catLabel = this.getCategoryLabel(item.category);
@@ -191,7 +198,7 @@ export class ItemLabelManager {
     // --- TOP FACE LABEL ---
     // Most visible when viewing from above (typical angle)
     const topTexture = this.createTextTexture(
-      primaryLine, secondaryLine, tertiaryLine, item.color, l, w
+      primaryLine, secondaryLine, tertiaryLine, item.color, l, w, hazmatInfo
     );
     const topGeom = new THREE.PlaneGeometry(l * 0.92, w * 0.92);
     const topMat = new THREE.MeshBasicMaterial({
@@ -215,7 +222,7 @@ export class ItemLabelManager {
     // Visible when viewing from front
     if (h > 0.04 && l > 0.04) {  // Only if face is large enough
       const frontTexture = this.createTextTexture(
-        primaryLine, secondaryLine, '', item.color, l, h
+        primaryLine, secondaryLine, '', item.color, l, h, hazmatInfo
       );
       const frontGeom = new THREE.PlaneGeometry(l * 0.92, h * 0.92);
       const frontMat = new THREE.MeshBasicMaterial({
@@ -239,7 +246,7 @@ export class ItemLabelManager {
     // Visible when viewing from side
     if (h > 0.04 && w > 0.04) {  // Only if face is large enough
       const sideTexture = this.createTextTexture(
-        primaryLine, weightStr, '', item.color, w, h
+        primaryLine, weightStr, '', item.color, w, h, hazmatInfo
       );
       const sideGeom = new THREE.PlaneGeometry(w * 0.92, h * 0.92);
       const sideMat = new THREE.MeshBasicMaterial({
@@ -266,19 +273,26 @@ export class ItemLabelManager {
   /**
    * Creates a canvas texture with formatted text lines on a styled background.
    * Canvas resolution scales with face size to maintain readability.
-   * 
+   *
+   * When `hazmatInfo` is supplied the bottom of the canvas gets a large, bold
+   * HAZMAT stripe showing "⚠ HAZMAT  CLASS X" in UN/DOT standard colours so
+   * the marking is visible from any angle.
+   *
    * Design features:
    * - Semi-transparent dark background with rounded corners
    * - Accent color bar at top matching item color
    * - Three text lines with hierarchical sizing
    * - Text clipping for long labels
-   * 
-   * @param line1 - Primary text (item label) - largest, white
-   * @param line2 - Secondary text (category, weight) - medium, light gray
-   * @param line3 - Tertiary text (dimensions) - smallest, muted
+   * - Optional HAZMAT stripe at bottom (when hazmatInfo provided)
+   *
+   * @param line1       - Primary text (item label) - largest, white
+   * @param line2       - Secondary text (category, weight) - medium, light gray
+   * @param line3       - Tertiary text (dimensions) - smallest, muted
    * @param accentColor - Color for accent bar (item color)
-   * @param faceW - Face width in Three.js units
-   * @param faceH - Face height in Three.js units
+   * @param faceW       - Face width in Three.js units
+   * @param faceH       - Face height in Three.js units
+   * @param hazmatInfo  - Optional HAZMAT class metadata; when present draws the
+   *                      HAZMAT stripe and omits the plain label shape
    * @returns Canvas texture ready for use on mesh
    */
   private createTextTexture(
@@ -287,7 +301,8 @@ export class ItemLabelManager {
     line3: string,
     accentColor: string,
     faceW: number,
-    faceH: number
+    faceH: number,
+    hazmatInfo?: { color: string; textColor: string; classNum: number; label: string } | null,
   ): THREE.CanvasTexture {
     // Calculate canvas resolution based on face size
     // Larger faces get higher resolution for better readability
@@ -314,17 +329,23 @@ export class ItemLabelManager {
     ctx.fillStyle = 'rgba(10, 14, 24, 0.55)';  // Semi-transparent dark
     ctx.fill();
 
+    // ── HAZMAT stripe ──────────────────────────────────────────────────────────
+    // Reserve the bottom 28 % of the canvas for the HAZMAT banner; normal text
+    // is rendered in the remaining top portion.
+    const hazmatBandH = hazmatInfo ? Math.round(canvasH * 0.28) : 0;
+
     // Draw accent color bar at top
     const barH = Math.max(3, Math.round(canvasH * 0.035));
     ctx.fillStyle = accentColor;
     ctx.fillRect(pad, pad, canvasW - pad * 2, barH);
 
     // Calculate text sizing based on available space
+    // Reserve space for hazmat band when present
+    const textAreaH = canvasH - hazmatBandH;
     const maxTextW = canvasW - pad * 4;
-    const lineCount = [line1, line2, line3].filter(Boolean).length;
-    
+
     // Dynamically size fonts based on canvas dimensions
-    let fontSize1 = Math.round(Math.min(canvasH * 0.22, canvasW * 0.12));
+    let fontSize1 = Math.round(Math.min(textAreaH * 0.22, canvasW * 0.12));
     let fontSize2 = Math.round(fontSize1 * 0.7);
     let fontSize3 = Math.round(fontSize1 * 0.6);
 
@@ -333,15 +354,16 @@ export class ItemLabelManager {
     fontSize2 = Math.max(8, Math.min(fontSize2, 52));
     fontSize3 = Math.max(7, Math.min(fontSize3, 42));
 
-    // Calculate vertical positioning for centered text
+    // Calculate vertical positioning for centered text (within text area)
     const totalTextH = fontSize1 + (line2 ? fontSize2 + 4 : 0) + (line3 ? fontSize3 + 4 : 0);
-    let textY = (canvasH - totalTextH) / 2 + fontSize1 * 0.35 + barH * 0.5;
+    let textY = (textAreaH - totalTextH) / 2 + fontSize1 * 0.35 + barH * 0.5;
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
 
     // RENDER LINE 1: Primary label (white, bold)
     ctx.fillStyle = '#ffffff';
     ctx.font = `bold ${fontSize1}px Inter, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
     const clipped1 = this.clipText(ctx, line1, maxTextW);
     ctx.fillText(clipped1, canvasW / 2, textY);
     textY += fontSize1 * 0.5;
@@ -363,6 +385,37 @@ export class ItemLabelManager {
       ctx.font = `400 ${fontSize3}px JetBrains Mono, monospace`;
       const clipped3 = this.clipText(ctx, line3, maxTextW);
       ctx.fillText(clipped3, canvasW / 2, textY);
+    }
+
+    // ── HAZMAT bottom stripe ───────────────────────────────────────────────────
+    if (hazmatInfo) {
+      const bandY = canvasH - hazmatBandH;
+
+      // Solid placard-colour background band
+      ctx.fillStyle = hazmatInfo.color;
+      ctx.fillRect(pad, bandY, canvasW - pad * 2, hazmatBandH - pad);
+
+      // Contrasting top border on the band
+      const bandBorderH = Math.max(2, Math.round(hazmatBandH * 0.06));
+      ctx.fillStyle = hazmatInfo.textColor;
+      ctx.fillRect(pad, bandY, canvasW - pad * 2, bandBorderH);
+
+      // "HAZMAT" text — large and bold
+      const hazFs = Math.round(Math.min(hazmatBandH * 0.42, canvasW * 0.18));
+      ctx.fillStyle = hazmatInfo.textColor;
+      ctx.font = `900 ${hazFs}px Inter, Arial, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      const bandCy = bandY + hazmatBandH * 0.38;
+      // When there is room, draw "HAZMAT" and "CLASS X" on separate lines
+      ctx.fillText('HAZMAT', canvasW / 2, bandCy);
+
+      if (hazmatInfo.classNum > 0) {
+        const clsFs = Math.round(hazFs * 0.52);
+        ctx.font = `700 ${clsFs}px Inter, Arial, sans-serif`;
+        ctx.fillText(`CLASS  ${hazmatInfo.classNum}`, canvasW / 2, bandCy + hazFs * 0.65);
+      }
     }
 
     // Create texture from canvas
