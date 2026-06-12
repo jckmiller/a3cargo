@@ -32,6 +32,7 @@ docker run -d \
     --name "$CONTAINER_NAME" \
     --restart unless-stopped \
     -p 127.0.0.1:${HOST_PORT}:80 \
+    --add-host=host.docker.internal:host-gateway \
     "$IMAGE_NAME"
 
 # Clean up old unused images

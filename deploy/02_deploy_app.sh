@@ -48,7 +48,10 @@ docker run -d \
     --name "$CONTAINER_NAME" \
     --restart unless-stopped \
     -p 127.0.0.1:${HOST_PORT}:80 \
+    --add-host=host.docker.internal:host-gateway \
     "$IMAGE_NAME"
+# --add-host makes host.docker.internal resolve to the Docker bridge gateway
+# so the nginx inside the container can proxy /api/* to the Node API on the host.
 
 echo ""
 echo "======================================"
