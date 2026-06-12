@@ -977,43 +977,46 @@ export function buildUI(callbacks: UICallbacks, user: AuthUser): void {
     (document.getElementById('item-weight') as HTMLInputElement).value = '';
   });
 
-  document.getElementById('toggle-grid')!.addEventListener('click', (e) => {
-    const el = e.currentTarget as HTMLElement;
-    el.classList.toggle('active');
-    callbacks.onToggleGrid(el.classList.contains('active'));
-  });
+  // Settings tab controls — only wired when the tab exists in the DOM (non-viewer)
+  if (user.role !== 'viewer') {
+    document.getElementById('toggle-grid')!.addEventListener('click', (e) => {
+      const el = e.currentTarget as HTMLElement;
+      el.classList.toggle('active');
+      callbacks.onToggleGrid(el.classList.contains('active'));
+    });
 
-  document.getElementById('toggle-snap')!.addEventListener('click', (e) => {
-    const el = e.currentTarget as HTMLElement;
-    el.classList.toggle('active');
-    const active = el.classList.contains('active');
-    callbacks.onToggleSnap(active);
-    document.getElementById('snap-indicator')!.style.display = active ? 'flex' : 'none';
-  });
+    document.getElementById('toggle-snap')!.addEventListener('click', (e) => {
+      const el = e.currentTarget as HTMLElement;
+      el.classList.toggle('active');
+      const active = el.classList.contains('active');
+      callbacks.onToggleSnap(active);
+      document.getElementById('snap-indicator')!.style.display = active ? 'flex' : 'none';
+    });
 
-  document.getElementById('toggle-labels')!.addEventListener('click', (e) => {
-    const el = e.currentTarget as HTMLElement;
-    el.classList.toggle('active');
-    callbacks.onToggleLabels();
-  });
+    document.getElementById('toggle-labels')!.addEventListener('click', (e) => {
+      const el = e.currentTarget as HTMLElement;
+      el.classList.toggle('active');
+      callbacks.onToggleLabels();
+    });
+
+    document.getElementById('grid-size-options')!.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest('.grid-size-btn') as HTMLElement;
+      if (!btn) return;
+      const size = parseInt(btn.dataset.gridSize!);
+      document.querySelectorAll('.grid-size-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      callbacks.onGridSizeChange(size);
+      const snapLabel = document.getElementById('snap-label');
+      if (snapLabel) snapLabel.textContent = `Snap: ${size}" grid`;
+    });
+
+    document.getElementById('color-mode')!.addEventListener('change', (e) => {
+      callbacks.onColorModeChange((e.target as HTMLSelectElement).value as ColorMode);
+    });
+  }
 
   document.getElementById('btn-toggle-labels')!.addEventListener('click', () => {
     callbacks.onToggleLabels();
-  });
-
-  document.getElementById('grid-size-options')!.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest('.grid-size-btn') as HTMLElement;
-    if (!btn) return;
-    const size = parseInt(btn.dataset.gridSize!);
-    document.querySelectorAll('.grid-size-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    callbacks.onGridSizeChange(size);
-    const snapLabel = document.getElementById('snap-label');
-    if (snapLabel) snapLabel.textContent = `Snap: ${size}" grid`;
-  });
-
-  document.getElementById('color-mode')!.addEventListener('change', (e) => {
-    callbacks.onColorModeChange((e.target as HTMLSelectElement).value as ColorMode);
   });
 
   document.getElementById('btn-reset-view')!.addEventListener('click', () => callbacks.onResetView());
@@ -1042,58 +1045,61 @@ export function buildUI(callbacks: UICallbacks, user: AuthUser): void {
     }
   });
 
-  document.getElementById('library-search')!.addEventListener('input', (e) => {
-    const query = (e.target as HTMLInputElement).value;
-    renderLibraryItems(query, callbacks);
-  });
+  // Library tab controls — only wired when the tab exists in the DOM (non-viewer)
+  if (user.role !== 'viewer') {
+    document.getElementById('library-search')!.addEventListener('input', (e) => {
+      const query = (e.target as HTMLInputElement).value;
+      renderLibraryItems(query, callbacks);
+    });
 
-  document.getElementById('btn-save-preset')!.addEventListener('click', async () => {
-    const name = (document.getElementById('lib-name') as HTMLInputElement).value.trim();
-    const category = (document.getElementById('lib-category') as HTMLSelectElement).value as ItemCategory;
-    const lengthIn = parseFloat((document.getElementById('lib-length') as HTMLInputElement).value);
-    const widthIn = parseFloat((document.getElementById('lib-width') as HTMLInputElement).value);
-    const heightIn = parseFloat((document.getElementById('lib-height') as HTMLInputElement).value);
-    const weightLbs = parseFloat((document.getElementById('lib-weight') as HTMLInputElement).value);
+    document.getElementById('btn-save-preset')!.addEventListener('click', async () => {
+      const name = (document.getElementById('lib-name') as HTMLInputElement).value.trim();
+      const category = (document.getElementById('lib-category') as HTMLSelectElement).value as ItemCategory;
+      const lengthIn = parseFloat((document.getElementById('lib-length') as HTMLInputElement).value);
+      const widthIn = parseFloat((document.getElementById('lib-width') as HTMLInputElement).value);
+      const heightIn = parseFloat((document.getElementById('lib-height') as HTMLInputElement).value);
+      const weightLbs = parseFloat((document.getElementById('lib-weight') as HTMLInputElement).value);
 
-    if (!name) { showToast('Please enter a name', 'error'); return; }
-    if (!lengthIn || !widthIn || !heightIn) { showToast('Please enter valid dimensions', 'error'); return; }
-    if (isNaN(weightLbs) || weightLbs < 0) { showToast('Please enter a valid weight', 'error'); return; }
+      if (!name) { showToast('Please enter a name', 'error'); return; }
+      if (!lengthIn || !widthIn || !heightIn) { showToast('Please enter valid dimensions', 'error'); return; }
+      if (isNaN(weightLbs) || weightLbs < 0) { showToast('Please enter a valid weight', 'error'); return; }
 
-    const newItem: LibraryItemDef = {
-      name,
-      icon: '📦',
-      lengthIn,
-      widthIn,
-      heightIn,
-      weightLbs,
-      category,
-      group: 'My Presets',
-    };
+      const newItem: LibraryItemDef = {
+        name,
+        icon: '📦',
+        lengthIn,
+        widthIn,
+        heightIn,
+        weightLbs,
+        category,
+        group: 'My Presets',
+      };
 
-    userLibrary.push(newItem);
-    rebuildAllLibrary();
-    await saveUserLibrary();
+      userLibrary.push(newItem);
+      rebuildAllLibrary();
+      await saveUserLibrary();
+      renderLibraryItems('', callbacks);
+
+      (document.getElementById('lib-name') as HTMLInputElement).value = '';
+      (document.getElementById('lib-length') as HTMLInputElement).value = '';
+      (document.getElementById('lib-width') as HTMLInputElement).value = '';
+      (document.getElementById('lib-height') as HTMLInputElement).value = '';
+      (document.getElementById('lib-weight') as HTMLInputElement).value = '';
+
+      showToast('Preset saved to library!', 'success');
+    });
+
+    document.getElementById('btn-clear-library')!.addEventListener('click', async () => {
+      if (!confirm('Remove all custom presets?')) return;
+      userLibrary = [];
+      rebuildAllLibrary();
+      await saveUserLibrary();
+      renderLibraryItems('', callbacks);
+      showToast('Custom presets cleared', 'success');
+    });
+
     renderLibraryItems('', callbacks);
-
-    (document.getElementById('lib-name') as HTMLInputElement).value = '';
-    (document.getElementById('lib-length') as HTMLInputElement).value = '';
-    (document.getElementById('lib-width') as HTMLInputElement).value = '';
-    (document.getElementById('lib-height') as HTMLInputElement).value = '';
-    (document.getElementById('lib-weight') as HTMLInputElement).value = '';
-
-    showToast('Preset saved to library!', 'success');
-  });
-
-  document.getElementById('btn-clear-library')!.addEventListener('click', async () => {
-    if (!confirm('Remove all custom presets?')) return;
-    userLibrary = [];
-    rebuildAllLibrary();
-    await saveUserLibrary();
-    renderLibraryItems('', callbacks);
-    showToast('Custom presets cleared', 'success');
-  });
-
-  renderLibraryItems('', callbacks);
+  }
 
   // ===== ROLE-BASED UI RESTRICTIONS =====
   // Hide editor-only controls for viewer accounts (admins have full editor access)
