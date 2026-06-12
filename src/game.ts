@@ -928,7 +928,7 @@ export class ContainerVizApp {
    * Only available to editors.
    */
   private saveLoad(): void {
-    if (this.user.role !== 'editor') {
+    if (this.user.role !== 'editor' && this.user.role !== 'admin') {
       showToast('View-only access — saving is not permitted', 'warning');
       return;
     }
@@ -1609,7 +1609,7 @@ export class ContainerVizApp {
       const modalOpen = document.querySelector('.modal-overlay') !== null;
 
       // Editor-only keyboard shortcuts
-      if (this.user.role === 'editor') {
+      if (this.user.role === 'editor' || this.user.role === 'admin') {
         if (e.key === 'Delete' || e.key === 'Backspace') {
           if (this.selectedItemId && !isInput && !modalOpen) {
             this.deleteItem(this.selectedItemId);
@@ -1726,7 +1726,7 @@ export class ContainerVizApp {
       this.selectItem(hit.item.id);
 
       // Viewers can select but not drag
-      if (this.user.role !== 'editor') return;
+      if (this.user.role !== 'editor' && this.user.role !== 'admin') return;
       
       this.dragItem = hit.item;
       this.dragStartPos = { x: hit.item.posX, y: hit.item.posY, z: hit.item.posZ };
