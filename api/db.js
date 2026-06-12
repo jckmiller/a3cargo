@@ -59,6 +59,48 @@ db.exec(`
   );
 `);
 
+// ── Migrations (must run BEFORE prepared statements are compiled) ─────────────
+// SQLite validates column names at prepare() time, so any schema migrations
+// must complete before we call db.prepare() with references to new columns.
+
+// Migration: add 'admin' role support
+// SQLite CHECK constraints cannot be altered after table creation.
+// If the old constraint exists (editor|viewer only), we recreate the table.
+(function migrateRoleConstraint() {
+  const tableSql = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='users'`).get();
+  if (tableSql && !tableSql.sql.includes("'admin'")) {
+    console.log('[db] Migrating users table to support admin role...');
+    db.exec(`
+      PRAGMA foreign_keys = OFF;
+      BEGIN;
+        CREATE TABLE users_new (
+          id            INTEGER PRIMARY KEY AUTOINCREMENT,
+          username      TEXT    UNIQUE NOT NULL,
+          password_hash TEXT    NOT NULL,
+          role          TEXT    NOT NULL DEFAULT 'viewer'
+                                CHECK(role IN ('admin', 'editor', 'viewer')),
+          created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+        INSERT INTO users_new SELECT * FROM users;
+        DROP TABLE users;
+        ALTER TABLE users_new RENAME TO users;
+      COMMIT;
+      PRAGMA foreign_keys = ON;
+    `);
+    console.log('[db] Migration complete.');
+  }
+})();
+
+// Migration: add visibility column to existing projects table
+(function migrateProjectVisibility() {
+  const tableSql = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='projects'`).get();
+  if (tableSql && !tableSql.sql.includes('visibility')) {
+    console.log('[db] Migrating projects table to add visibility column...');
+    db.exec(`ALTER TABLE projects ADD COLUMN visibility TEXT NOT NULL DEFAULT 'public'`);
+    console.log('[db] Migration complete.');
+  }
+})();
+
 // ── Prepared statements ───────────────────────────────────────────────────────
 
 const stmts = {
@@ -132,44 +174,6 @@ const stmts = {
     SELECT 1 FROM project_viewers WHERE project_id = ? AND user_id = ?
   `),
 };
-
-// ── Migration: add 'admin' role support ───────────────────────────────────────
-// SQLite CHECK constraints cannot be altered after table creation.
-// If the old constraint exists (editor|viewer only), we recreate the table.
-(function migrateRoleConstraint() {
-  const tableSql = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='users'`).get();
-  if (tableSql && !tableSql.sql.includes("'admin'")) {
-    console.log('[db] Migrating users table to support admin role...');
-    db.exec(`
-      PRAGMA foreign_keys = OFF;
-      BEGIN;
-        CREATE TABLE users_new (
-          id            INTEGER PRIMARY KEY AUTOINCREMENT,
-          username      TEXT    UNIQUE NOT NULL,
-          password_hash TEXT    NOT NULL,
-          role          TEXT    NOT NULL DEFAULT 'viewer'
-                                CHECK(role IN ('admin', 'editor', 'viewer')),
-          created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
-        );
-        INSERT INTO users_new SELECT * FROM users;
-        DROP TABLE users;
-        ALTER TABLE users_new RENAME TO users;
-      COMMIT;
-      PRAGMA foreign_keys = ON;
-    `);
-    console.log('[db] Migration complete.');
-  }
-})();
-
-// ── Migration: add visibility column to existing projects table ───────────────
-(function migrateProjectVisibility() {
-  const tableSql = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='projects'`).get();
-  if (tableSql && !tableSql.sql.includes('visibility')) {
-    console.log('[db] Migrating projects table to add visibility column...');
-    db.exec(`ALTER TABLE projects ADD COLUMN visibility TEXT NOT NULL DEFAULT 'public'`);
-    console.log('[db] Migration complete.');
-  }
-})();
 
 // ── Default seed ──────────────────────────────────────────────────────────────
 // On a brand-new installation (empty users table) create a default admin
