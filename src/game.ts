@@ -63,11 +63,13 @@ import {
   updateThemeIcon,
   updateLabelsToggleUI,
   formatDateForFilename,
+  showProjectsModal,
   UICallbacks,
 } from "./ui";
 import { ItemLabelManager } from "./labels";
 import { generateLoadPlan, generateLoadPlanHTML, generatePrintableLoadPlan, smartSortItems, LoadStep } from "./loadplan";
 import { persistence } from "./libs/persistence";
+import { AuthUser } from "./libs/api";
 
 /**
  * Main application class for the A3 Shipping Pro container loading visualization.
@@ -210,6 +212,9 @@ export class ContainerVizApp {
   /** UI callback interface */
   private callbacks!: UICallbacks;
 
+  /** Authenticated user (governs role-based UI restrictions) */
+  private user!: AuthUser;
+
   // ========================================================================
   // INITIALIZATION
   // ========================================================================
@@ -218,7 +223,8 @@ export class ContainerVizApp {
    * Initializes the complete application.
    * Called once on instantiation to set up the entire app.
    */
-  constructor() {
+  constructor(user: AuthUser) {
+    this.user = user;
     this.loadTheme();
     this.initUI();
     this.initThreeJS();
@@ -357,7 +363,7 @@ export class ContainerVizApp {
       onSaveLoad: () => this.saveLoad(),
       onLoadFile: () => this.loadFile(),
     };
-    buildUI(this.callbacks);
+    buildUI(this.callbacks, this.user);
   }
 
   private initThreeJS(): void {
@@ -918,16 +924,20 @@ export class ContainerVizApp {
   // ========================================================================
 
   /**
-   * Exports the current container load to a JSON file.
-   * The file can be imported later to restore the exact configuration.
+   * Opens the cloud Projects modal to save the current container load.
+   * Only available to editors.
    */
   private saveLoad(): void {
+    if (this.user.role !== 'editor') {
+      showToast('View-only access — saving is not permitted', 'warning');
+      return;
+    }
     if (this.items.length === 0) {
       showToast('Add items to the container before saving', 'warning');
       return;
     }
 
-    const savedLoad: SavedLoad = {
+    const data: SavedLoad = {
       version: '1.0',
       containerType: this.containerSpec.name,
       items: this.items,
@@ -939,94 +949,69 @@ export class ContainerVizApp {
       exportDate: new Date().toISOString(),
     };
 
-    const json = JSON.stringify(savedLoad, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `a3-load-${formatDateForFilename()}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
-    
-    showToast('Container load saved successfully!', 'success');
+    showProjectsModal({
+      mode: 'save',
+      user: this.user,
+      saveData: data,
+    });
   }
 
   /**
-   * Opens file picker to import a saved container load.
-   * Validates and restores the saved configuration.
+   * Opens the cloud Projects modal to load a saved project.
+   * Both editors and viewers can load; editors can also delete projects.
    */
   private loadFile(): void {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json,.a3load';
-    
-    input.addEventListener('change', async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-
-      try {
-        const text = await file.text();
-        const savedLoad: SavedLoad = JSON.parse(text);
-
-        // Validate file format
-        if (!savedLoad.version || !savedLoad.containerType || !savedLoad.items) {
-          showToast('Invalid file format', 'error');
-          return;
-        }
-
-        // Confirm if there are existing items
-        if (this.items.length > 0) {
-          if (!confirm('Loading this file will replace your current items. Continue?')) {
-            return;
-          }
-        }
-
-        // Clear current items
-        this.clearAll();
-
-        // Set container type
-        if (CONTAINER_SPECS[savedLoad.containerType]) {
-          this.containerSpec = CONTAINER_SPECS[savedLoad.containerType];
-          this.buildContainer();
-        }
-
-        // Apply preferences if available
-        if (savedLoad.preferences) {
-          if (savedLoad.preferences.gridSize) {
-            this.gridSize = savedLoad.preferences.gridSize;
-          }
-          if (savedLoad.preferences.colorMode) {
-            this.colorMode = savedLoad.preferences.colorMode;
-          }
-          if (savedLoad.preferences.snapEnabled !== undefined) {
-            this.snapEnabled = savedLoad.preferences.snapEnabled;
-          }
-        }
-
-        // Load all items (backward-compat: supply defaults for fields added in later versions)
-        for (const itemData of savedLoad.items) {
-          const item: CargoItem = {
-            ...itemData,
-            acceptsOnTop: itemData.acceptsOnTop ?? 'all',
-            canStackOn: itemData.canStackOn ?? 'all',
-          };
-          this.items.push(item);
-          this.createItemMeshInternal(item);
-          this.labelManager.createLabel(item);
-        }
-
-        this.refreshUI();
-        this.resetView();
-
-        showToast(`Loaded ${savedLoad.items.length} items from file`, 'success');
-      } catch (e) {
-        showToast('Could not load file: ' + (e as Error).message, 'error');
-      }
+    showProjectsModal({
+      mode: 'load',
+      user: this.user,
+      onLoad: (savedLoad: SavedLoad) => this.applyLoadedData(savedLoad),
     });
+  }
 
-    input.click();
+  /**
+   * Applies a SavedLoad object to the current scene.
+   * Used by cloud load and (if needed) any future import path.
+   */
+  private applyLoadedData(savedLoad: SavedLoad): void {
+    if (!savedLoad.version || !savedLoad.containerType || !savedLoad.items) {
+      showToast('Invalid project data', 'error');
+      return;
+    }
+
+    if (this.items.length > 0) {
+      if (!confirm('Loading this project will replace your current items. Continue?')) return;
+    }
+
+    this.clearAll();
+
+    if (CONTAINER_SPECS[savedLoad.containerType]) {
+      this.containerSpec = CONTAINER_SPECS[savedLoad.containerType];
+      this.buildContainer();
+    }
+
+    if (savedLoad.preferences) {
+      if (savedLoad.preferences.gridSize) this.gridSize = savedLoad.preferences.gridSize;
+      if (savedLoad.preferences.colorMode) this.colorMode = savedLoad.preferences.colorMode;
+      if (savedLoad.preferences.snapEnabled !== undefined) this.snapEnabled = savedLoad.preferences.snapEnabled;
+    }
+
+    for (const itemData of savedLoad.items) {
+      const item: CargoItem = {
+        ...itemData,
+        acceptsOnTop: itemData.acceptsOnTop ?? 'all',
+        canStackOn: itemData.canStackOn ?? 'all',
+      };
+      this.items.push(item);
+      this.createItemMeshInternal(item);
+      this.labelManager.createLabel(item);
+    }
+
+    this.refreshUI();
+    this.resetView();
+    showToast(
+      `Loaded "${savedLoad.loadName || savedLoad.containerType}" — ${savedLoad.items.length} items`,
+      'success'
+    );
   }
 
   private resetView(): void {
@@ -1623,29 +1608,32 @@ export class ContainerVizApp {
       const isInput = active && (active.tagName === 'INPUT' || active.tagName === 'SELECT' || active.tagName === 'TEXTAREA');
       const modalOpen = document.querySelector('.modal-overlay') !== null;
 
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (this.selectedItemId && !isInput && !modalOpen) {
-          this.deleteItem(this.selectedItemId);
+      // Editor-only keyboard shortcuts
+      if (this.user.role === 'editor') {
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+          if (this.selectedItemId && !isInput && !modalOpen) {
+            this.deleteItem(this.selectedItemId);
+          }
         }
-      }
 
-      if ((e.key === 'r' || e.key === 'R') && !isInput && !modalOpen) {
-        if (this.selectedItemId) {
-          this.rotateItem(this.selectedItemId, 'y');
+        if ((e.key === 'r' || e.key === 'R') && !isInput && !modalOpen) {
+          if (this.selectedItemId) {
+            this.rotateItem(this.selectedItemId, 'y');
+          }
         }
-      }
 
-      if ((e.key === 't' || e.key === 'T') && !isInput && !modalOpen) {
-        if (this.selectedItemId) {
-          this.rotateItem(this.selectedItemId, 'tipForward');
+        if ((e.key === 't' || e.key === 'T') && !isInput && !modalOpen) {
+          if (this.selectedItemId) {
+            this.rotateItem(this.selectedItemId, 'tipForward');
+          }
         }
-      }
 
-      if ((e.key === 'e' || e.key === 'E') && !isInput && !modalOpen) {
-        if (this.selectedItemId) {
-          this.openEditModal(this.selectedItemId);
-        } else {
-          showToast('Select an item first to edit', 'warning');
+        if ((e.key === 'e' || e.key === 'E') && !isInput && !modalOpen) {
+          if (this.selectedItemId) {
+            this.openEditModal(this.selectedItemId);
+          } else {
+            showToast('Select an item first to edit', 'warning');
+          }
         }
       }
 
@@ -1736,6 +1724,9 @@ export class ContainerVizApp {
 
     if (hit) {
       this.selectItem(hit.item.id);
+
+      // Viewers can select but not drag
+      if (this.user.role !== 'editor') return;
       
       this.dragItem = hit.item;
       this.dragStartPos = { x: hit.item.posX, y: hit.item.posY, z: hit.item.posZ };

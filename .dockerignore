@@ -9,3 +9,6 @@ dist
 .vscode
 *.log
 npm-debug.log*
+
+# API runs as a separate systemd service — not needed in the Docker image
+api/

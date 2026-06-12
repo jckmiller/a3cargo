@@ -1,5 +1,9 @@
 # Dependencies
 node_modules/
+api/node_modules/
+
+# API local database (never commit the SQLite file)
+api/data/
 
 # Build output
 dist/

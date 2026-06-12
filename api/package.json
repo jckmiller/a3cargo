@@ -1,0 +1,17 @@
+{
+  "name": "a3cargo-api",
+  "version": "1.0.0",
+  "description": "A3 Cargo backend API — user auth + project storage",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "better-sqlite3": "^9.4.3",
+    "express": "^4.18.3",
+    "jsonwebtoken": "^9.0.2"
+  }
+}

@@ -1,24 +1,16 @@
 /**
  * Application Entry Point
- * 
- * Initializes and starts the A3 Shipping Pro application.
- * This file is loaded by the browser and kicks off the entire application.
+ *
+ * 1. Verifies (or collects) user authentication.
+ * 2. Passes the authenticated user into the main application.
  */
 
-import { ContainerVizApp } from "./game";
+import { requireAuth } from './auth';
+import { ContainerVizApp } from './game';
 
-/**
- * Main application initialization function.
- * Creates a new instance of the ContainerVizApp which:
- * - Sets up the 3D scene with Three.js
- * - Builds the user interface
- * - Initializes event listeners
- * - Loads saved preferences
- * - Starts the animation loop
- */
-function main(): void {
-  new ContainerVizApp();
+async function main(): Promise<void> {
+  const user = await requireAuth();
+  new ContainerVizApp(user);
 }
 
-// Start the application when this module loads
 main();

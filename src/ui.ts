@@ -31,6 +31,7 @@ import {
   StackingRule,
   HazmatLevel,
   HAZMAT_CLASSES,
+  SavedLoad,
 } from "./definitions";
 import {
   calculateUtilization,
@@ -43,6 +44,16 @@ import {
   stackingRuleLabel,
 } from "./utils";
 import { persistence } from "./libs/persistence";
+import {
+  AuthUser,
+  apiListProjects,
+  apiCreateProject,
+  apiUpdateProject,
+  apiDeleteProject,
+  apiGetProject,
+  ProjectSummary,
+} from "./libs/api";
+import { logout } from "./auth";
 import { loadLogoDataUrl, getLogoDataUrl } from "./logo";
 
 // ============================================================================
@@ -242,7 +253,7 @@ function readStackingRule(idPrefix: string): StackingRule {
  * 
  * @param callbacks - Object with callback functions for all user actions
  */
-export function buildUI(callbacks: UICallbacks): void {
+export function buildUI(callbacks: UICallbacks, user: AuthUser): void {
   _globalCallbacks = callbacks;
 
   loadUserLibrary().then(() => {
@@ -270,7 +281,14 @@ export function buildUI(callbacks: UICallbacks): void {
             <div class="subtitle">3D Container Loading</div>
           </div>
         </div>
-        <button class="theme-toggle-btn" id="theme-toggle" title="Switch to Dark Mode">🌙</button>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="user-badge">
+            <span class="user-badge-name">${user.username}</span>
+            <span class="user-badge-role ${user.role}">${user.role}</span>
+          </div>
+          <button class="theme-toggle-btn" id="theme-toggle" title="Switch to Dark Mode">🌙</button>
+          <button class="theme-toggle-btn" id="btn-logout" title="Sign out" style="font-size:14px">⎋</button>
+        </div>
       </div>
     </div>
   `;
@@ -710,6 +728,10 @@ export function buildUI(callbacks: UICallbacks): void {
     callbacks.onToggleTheme();
   });
 
+  document.getElementById('btn-logout')!.addEventListener('click', () => {
+    if (confirm('Sign out of A3 Shipping Pro?')) logout();
+  });
+
   tabs.querySelectorAll('.panel-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       tabs.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
@@ -868,6 +890,35 @@ export function buildUI(callbacks: UICallbacks): void {
   });
 
   renderLibraryItems('', callbacks);
+
+  // ===== ROLE-BASED UI RESTRICTIONS =====
+  // Hide editor-only controls for viewer accounts
+  if (user.role !== 'editor') {
+    // Hide the "Add Custom Item" section entirely
+    if (addSection) (addSection as HTMLElement).style.display = 'none';
+
+    // Hide editor toolbar buttons
+    const editorToolbarBtns = ['btn-rotate-sel', 'btn-edit-sel', 'btn-save-load'];
+    editorToolbarBtns.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+
+    // Change "Load File" button label to "Load Project"
+    const loadBtn = document.getElementById('btn-load-file');
+    if (loadBtn) loadBtn.textContent = '📂 Projects';
+
+    // Hide "Clear All" button from items header
+    const clearBtn = document.getElementById('btn-clear-all');
+    if (clearBtn) clearBtn.style.display = 'none';
+
+    // Show view-only notice in empty state
+    const itemsList = document.getElementById('items-list');
+    if (itemsList && itemsList.querySelector('.empty-state')) {
+      const notice = itemsList.querySelector('.empty-state p');
+      if (notice) notice.textContent = 'Load a project to view the container.';
+    }
+  }
 }
 
 function renderLibraryItems(search: string, callbacks: UICallbacks): void {
@@ -1796,5 +1847,206 @@ export function updateLabelsToggleUI(active: boolean): void {
     } else {
       settingsToggle.classList.remove('active');
     }
+  }
+}
+
+// ============================================================================
+// CLOUD PROJECTS MODAL
+// ============================================================================
+
+export interface ProjectsModalOptions {
+  mode: 'save' | 'load';
+  user: AuthUser;
+  /** Present when mode === 'save'. The current container state to persist. */
+  saveData?: SavedLoad;
+  /** Called when mode === 'load' and the user selects a project. */
+  onLoad?: (savedLoad: SavedLoad) => void;
+}
+
+/**
+ * Opens the cloud Projects modal.
+ *
+ * Save mode: lets editors give the project a name and save (create or overwrite).
+ * Load mode: lists all projects with a Load button; editors also see a Delete button.
+ */
+export function showProjectsModal(options: ProjectsModalOptions): void {
+  const { mode, user, saveData, onLoad } = options;
+  const isEditor = user.role === 'editor';
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+
+  const titleText = mode === 'save' ? '💾 Save Project' : '📂 Open Project';
+
+  overlay.innerHTML = `
+    <div class="modal small" style="position:relative;min-width:420px">
+      <h2>${titleText}</h2>
+
+      ${mode === 'save' ? `
+        <div class="form-group" style="margin-bottom:12px">
+          <label>Project Name</label>
+          <input type="text" id="proj-name-input" placeholder="e.g. Container Load #42"
+                 value="" style="width:100%" autocomplete="off" />
+        </div>
+        <button class="btn btn-primary btn-full" id="proj-save-new" style="margin-bottom:16px">
+          Save as New Project
+        </button>
+        <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">
+          Or overwrite an existing project:
+        </div>
+      ` : ''}
+
+      <div id="proj-list-area" style="max-height:320px;overflow-y:auto;border:1px solid var(--border-color);border-radius:var(--radius-sm);background:var(--bg-card)">
+        <div style="padding:16px;text-align:center;color:var(--text-muted);font-size:12px">Loading projects…</div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;margin-top:14px">
+        <button class="btn btn-secondary" id="proj-cancel">Cancel</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  // ── Close helpers ────────────────────────────────────────────────────────
+  document.getElementById('proj-cancel')!.addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+  const listArea = document.getElementById('proj-list-area')!;
+  const nameInput = document.getElementById('proj-name-input') as HTMLInputElement | null;
+  if (nameInput) nameInput.focus();
+
+  // ── Load projects list ───────────────────────────────────────────────────
+  const loadProjectsList = async () => {
+    try {
+      const projects = await apiListProjects();
+
+      if (projects.length === 0) {
+        listArea.innerHTML = `
+          <div style="padding:20px;text-align:center;color:var(--text-muted);font-size:12px">
+            No saved projects yet.
+            ${mode === 'save' ? 'Use the form above to save this load.' : ''}
+          </div>
+        `;
+        return;
+      }
+
+      listArea.innerHTML = projects.map(p => {
+        const date = new Date(p.updated_at).toLocaleDateString();
+        return `
+          <div class="proj-row" data-proj-id="${p.id}" style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--border-color);cursor:pointer">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:12.5px;font-weight:600;color:var(--text-bright);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
+              <div style="font-size:10px;color:var(--text-muted)">by ${p.owner_name} · ${date}</div>
+            </div>
+            ${mode === 'load' ? `
+              <button class="btn btn-sm btn-primary proj-load-btn" data-proj-id="${p.id}">Load</button>
+            ` : `
+              <button class="btn btn-sm btn-secondary proj-overwrite-btn" data-proj-id="${p.id}" data-proj-name="${p.name}">Overwrite</button>
+            `}
+            ${isEditor ? `
+              <button class="btn btn-sm btn-danger proj-delete-btn" data-proj-id="${p.id}" title="Delete project">×</button>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+
+      // ── Load button ──────────────────────────────────────────────────────
+      listArea.querySelectorAll('.proj-load-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const id = Number((btn as HTMLElement).dataset.projId);
+          try {
+            (btn as HTMLButtonElement).disabled = true;
+            (btn as HTMLButtonElement).textContent = '…';
+            const project = await apiGetProject(id);
+            overlay.remove();
+            if (onLoad) onLoad(project.data as SavedLoad);
+          } catch (err) {
+            showToast((err as Error).message || 'Could not load project', 'error');
+            (btn as HTMLButtonElement).disabled = false;
+            (btn as HTMLButtonElement).textContent = 'Load';
+          }
+        });
+      });
+
+      // ── Overwrite button (save mode) ──────────────────────────────────────
+      listArea.querySelectorAll('.proj-overwrite-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const id = Number((btn as HTMLElement).dataset.projId);
+          const projName = (btn as HTMLElement).dataset.projName!;
+          if (!confirm(`Overwrite project "${projName}" with the current load?`)) return;
+          try {
+            (btn as HTMLButtonElement).disabled = true;
+            (btn as HTMLButtonElement).textContent = '…';
+            await apiUpdateProject(id, { name: projName, data: saveData as object });
+            overlay.remove();
+            showToast(`Project "${projName}" updated!`, 'success');
+          } catch (err) {
+            showToast((err as Error).message || 'Could not update project', 'error');
+            (btn as HTMLButtonElement).disabled = false;
+            (btn as HTMLButtonElement).textContent = 'Overwrite';
+          }
+        });
+      });
+
+      // ── Delete button ─────────────────────────────────────────────────────
+      listArea.querySelectorAll('.proj-delete-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const id = Number((btn as HTMLElement).dataset.projId);
+          const row = (btn as HTMLElement).closest('.proj-row') as HTMLElement;
+          const name = row.querySelector('div > div')?.textContent || 'this project';
+          if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+          try {
+            (btn as HTMLButtonElement).disabled = true;
+            await apiDeleteProject(id);
+            showToast(`Project deleted`, 'success');
+            await loadProjectsList(); // refresh
+          } catch (err) {
+            showToast((err as Error).message || 'Could not delete project', 'error');
+            (btn as HTMLButtonElement).disabled = false;
+          }
+        });
+      });
+
+    } catch (err) {
+      listArea.innerHTML = `
+        <div style="padding:16px;color:var(--accent-red);font-size:12px">
+          ✕ Could not load projects: ${(err as Error).message}
+        </div>
+      `;
+    }
+  };
+
+  loadProjectsList();
+
+  // ── Save New button ──────────────────────────────────────────────────────
+  if (mode === 'save' && nameInput) {
+    document.getElementById('proj-save-new')!.addEventListener('click', async () => {
+      const name = nameInput.value.trim();
+      if (!name) {
+        showToast('Please enter a project name', 'error');
+        nameInput.focus();
+        return;
+      }
+      const btn = document.getElementById('proj-save-new') as HTMLButtonElement;
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+      try {
+        const project = await apiCreateProject(name, saveData as object);
+        overlay.remove();
+        showToast(`Project "${project.name}" saved!`, 'success');
+      } catch (err) {
+        showToast((err as Error).message || 'Could not save project', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Save as New Project';
+      }
+    });
+
+    nameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('proj-save-new')?.click();
+    });
   }
 }
