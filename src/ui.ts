@@ -306,8 +306,8 @@ export function buildUI(callbacks: UICallbacks, user: AuthUser): void {
   tabs.className = 'panel-tabs';
   tabs.innerHTML = `
     <button class="panel-tab active" data-tab="cargo">Cargo</button>
-    <button class="panel-tab" data-tab="library">Library</button>
-    <button class="panel-tab" data-tab="settings">Settings</button>
+    ${user.role !== 'viewer' ? `<button class="panel-tab" data-tab="library">Library</button>` : ''}
+    ${user.role !== 'viewer' ? `<button class="panel-tab" data-tab="settings">Settings</button>` : ''}
   `;
   leftPanel.appendChild(tabs);
 
@@ -543,7 +543,7 @@ export function buildUI(callbacks: UICallbacks, user: AuthUser): void {
   libraryContent.appendChild(libGrid);
 
   libraryTab.appendChild(libraryContent);
-  leftPanel.appendChild(libraryTab);
+  if (user.role !== 'viewer') leftPanel.appendChild(libraryTab);
 
   // ===== TAB: SETTINGS =====
   const settingsTab = document.createElement('div');
@@ -767,7 +767,7 @@ export function buildUI(callbacks: UICallbacks, user: AuthUser): void {
   }
 
   settingsTab.appendChild(settingsScroll);
-  leftPanel.appendChild(settingsTab);
+  if (user.role !== 'viewer') leftPanel.appendChild(settingsTab);
 
   app.appendChild(leftPanel);
 
