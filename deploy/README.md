@@ -89,9 +89,23 @@ This:
 
 ---
 
+### Step 4 — Add Login Protection *(optional)*
+
+```bash
+curl -O https://raw.githubusercontent.com/jckmiller/a3cargo/main/deploy/04_add_auth.sh
+sudo bash 04_add_auth.sh
+```
+
+This:
+- Creates an nginx `.htpasswd` credentials file
+- Protects the site with HTTP Basic Auth (browser login prompt)
+- Credentials: **username:** `user` / **password:** `123123`
+
+---
+
 ### ✅ Done!
 
-Visit **https://cargo.neoaiaeon.com** — your app should be live.
+Visit **https://cargo.neoaiaeon.com** — your app should be live and password-protected.
 
 ---
 
