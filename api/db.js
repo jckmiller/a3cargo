@@ -10,8 +10,9 @@
  * Database file location: DATA_DIR env-var (default: ./data/a3cargo.db)
  */
 
-const path = require('path');
-const fs   = require('fs');
+const path   = require('path');
+const fs     = require('fs');
+const bcrypt = require('bcryptjs');
 const Database = require('better-sqlite3');
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
@@ -86,5 +87,17 @@ const stmts = {
   `),
   deleteProject: db.prepare(`DELETE FROM projects WHERE id = ?`),
 };
+
+// ── Default seed ──────────────────────────────────────────────────────────────
+// On a brand-new installation (empty users table) create a default admin
+// account so the app is immediately usable without running any extra scripts.
+// Change the password after first login using 07_create_user.sh or the API.
+
+const userCount = db.prepare('SELECT COUNT(*) AS n FROM users').get();
+if (userCount.n === 0) {
+  const hash = bcrypt.hashSync('123123', 10);
+  stmts.createUser.run('admin', hash, 'editor');
+  console.log('[db] Seeded default admin account (username: admin / password: 123123)');
+}
 
 module.exports = { db, stmts };
