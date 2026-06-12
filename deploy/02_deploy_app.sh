@@ -23,7 +23,7 @@ if [ -d "$APP_DIR" ]; then
     cd "$APP_DIR"
     git pull origin main
 else
-    git clone https://github.com/jckmiller/a3cargo.git "$APP_DIR"
+    git clone git@github.com:jckmiller/a3cargo.git "$APP_DIR"
     cd "$APP_DIR"
 fi
 

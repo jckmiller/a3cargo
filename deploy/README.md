@@ -2,6 +2,40 @@
 
 Deploy the app to your Hostinger Ubuntu VPS at **https://cargo.neoaiaeon.com**
 
+> ⚠️ **This repository is private.** The VPS must authenticate via an SSH deploy key to clone/pull from GitHub. Complete the **SSH Deploy Key Setup** section below before running any deploy scripts.
+
+---
+
+## SSH Deploy Key Setup (Required for Private Repo)
+
+Run these commands on your VPS (as root):
+
+```bash
+# 1. Generate a dedicated SSH key for this repo (no passphrase)
+ssh-keygen -t ed25519 -C "a3cargo-vps-deploy" -f /root/.ssh/a3cargo_deploy -N ""
+
+# 2. Print the public key — copy this output
+cat /root/.ssh/a3cargo_deploy.pub
+
+# 3. Configure SSH to use this key when connecting to GitHub
+cat >> /root/.ssh/config << 'EOF'
+Host github.com
+  IdentityFile /root/.ssh/a3cargo_deploy
+  StrictHostKeyChecking no
+EOF
+```
+
+Then on GitHub:
+1. Go to the **a3cargo** repo → **Settings → Deploy keys → Add deploy key**
+2. Paste the public key, give it a name (e.g. `VPS Deploy Key`), leave **Allow write access** unchecked
+3. Click **Add key**
+
+Verify it works:
+```bash
+ssh -T git@github.com
+# Expected: Hi jckmiller/a3cargo! You've successfully authenticated...
+```
+
 ---
 
 ## Prerequisites (Do This First)
@@ -26,15 +60,24 @@ SSH into your VPS first:
 ssh root@<your-vps-ip>
 ```
 
-Then run the three scripts in order:
+> 📌 **Since the repo is private**, scripts can no longer be downloaded via raw `curl`. Complete the **SSH Deploy Key Setup** above first, then clone the repo in Step 2. Steps 3–7 are run directly from the cloned repo.
+
+Then run the scripts in order:
 
 ---
 
 ### Step 1 — Install Docker, Nginx & Certbot
 
+Step 1 only requires system tools — copy the script to your VPS with `scp` from your local machine, or paste its contents manually:
+
 ```bash
-curl -O https://raw.githubusercontent.com/jckmiller/a3cargo/main/deploy/01_vps_setup.sh
-sudo bash 01_vps_setup.sh
+# From your LOCAL machine:
+scp deploy/01_vps_setup.sh root@<your-vps-ip>:~/
+```
+
+Then on the VPS:
+```bash
+sudo bash ~/01_vps_setup.sh
 ```
 
 This installs:
@@ -47,13 +90,16 @@ This installs:
 
 ### Step 2 — Clone Repo & Build the App
 
+> ⚠️ **Complete the SSH Deploy Key Setup above before this step.**
+
+Or clone manually then run the script from the repo:
 ```bash
-curl -O https://raw.githubusercontent.com/jckmiller/a3cargo/main/deploy/02_deploy_app.sh
-sudo bash 02_deploy_app.sh
+git clone git@github.com:jckmiller/a3cargo.git /opt/a3cargo
+sudo bash /opt/a3cargo/deploy/02_deploy_app.sh
 ```
 
 This:
-- Clones the GitHub repo to `/opt/a3cargo`
+- Clones the GitHub repo to `/opt/a3cargo` via SSH
 - Builds the Docker image (TypeScript → Vite → nginx)
 - Runs the container on internal port `8080`
 
@@ -65,20 +111,16 @@ This:
 
 > ⚠️ **DNS must be propagated before this step**, or the SSL cert will fail.
 
-```bash
-curl -O https://raw.githubusercontent.com/jckmiller/a3cargo/main/deploy/03_configure_nginx.sh
-```
-
 **Edit the email address** in the script before running:
 ```bash
-nano 03_configure_nginx.sh
+nano /opt/a3cargo/deploy/03_configure_nginx.sh
 # Change: EMAIL="admin@neoaiaeon.com"
 # To your actual email address
 ```
 
 Then run it:
 ```bash
-sudo bash 03_configure_nginx.sh
+sudo bash /opt/a3cargo/deploy/03_configure_nginx.sh
 ```
 
 This:
@@ -92,8 +134,7 @@ This:
 ### Step 4 — Add Basic Auth *(optional, pre-API)*
 
 ```bash
-curl -O https://raw.githubusercontent.com/jckmiller/a3cargo/main/deploy/04_add_auth.sh
-sudo bash 04_add_auth.sh
+sudo bash /opt/a3cargo/deploy/04_add_auth.sh
 ```
 
 This:
@@ -108,8 +149,7 @@ This:
 ### Step 5 — Install & Start the API
 
 ```bash
-curl -O https://raw.githubusercontent.com/jckmiller/a3cargo/main/deploy/05_setup_api.sh
-sudo bash 05_setup_api.sh
+sudo bash /opt/a3cargo/deploy/05_setup_api.sh
 ```
 
 This:
@@ -127,8 +167,7 @@ This:
 ### Step 6 — Update Nginx to Proxy the API
 
 ```bash
-curl -O https://raw.githubusercontent.com/jckmiller/a3cargo/main/deploy/06_update_nginx_api.sh
-sudo bash 06_update_nginx_api.sh
+sudo bash /opt/a3cargo/deploy/06_update_nginx_api.sh
 ```
 
 This:
@@ -142,8 +181,7 @@ This:
 ### Step 7 — Create Your First User
 
 ```bash
-curl -O https://raw.githubusercontent.com/jckmiller/a3cargo/main/deploy/07_create_user.sh
-sudo bash 07_create_user.sh <username> <password> editor
+sudo bash /opt/a3cargo/deploy/07_create_user.sh <username> <password> editor
 ```
 
 Examples:
@@ -173,13 +211,7 @@ Whenever you push new code to GitHub, SSH into the VPS and run:
 sudo bash /opt/a3cargo/deploy/update.sh
 ```
 
-Or fetch the latest version:
-```bash
-curl -O https://raw.githubusercontent.com/jckmiller/a3cargo/main/deploy/update.sh
-sudo bash update.sh
-```
-
-This pulls the latest code, rebuilds the Docker image, and restarts the container with zero config changes needed.
+This pulls the latest code via SSH, rebuilds the Docker image, and restarts the container with zero config changes needed.
 
 ---
 
