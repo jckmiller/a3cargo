@@ -46,11 +46,16 @@ import {
 import { persistence } from "./libs/persistence";
 import {
   AuthUser,
+  UserSummary,
   apiListProjects,
   apiCreateProject,
   apiUpdateProject,
   apiDeleteProject,
   apiGetProject,
+  apiListUsers,
+  apiCreateUser,
+  apiUpdateUserRole,
+  apiDeleteUser,
   ProjectSummary,
 } from "./libs/api";
 import { logout } from "./auth";
@@ -622,6 +627,175 @@ export function buildUI(callbacks: UICallbacks, user: AuthUser): void {
   `;
   settingsScroll.appendChild(settingsSection3);
 
+  // ===== USER MANAGEMENT SECTION (admin-only) =====
+  if (user.role === 'admin') {
+    const userMgmtSection = document.createElement('div');
+    userMgmtSection.className = 'panel-section';
+    userMgmtSection.id = 'user-mgmt-section';
+    userMgmtSection.innerHTML = `
+      <div class="panel-section-title">User Management</div>
+
+      <div id="user-list-area" style="margin-bottom:12px">
+        <div style="font-size:11px;color:var(--text-muted)">Loading users…</div>
+      </div>
+
+      <div class="collapsible-header" data-collapse="add-user" style="margin-bottom:0;cursor:pointer">
+        <div style="font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px">Add New User</div>
+        <span class="collapse-arrow">▼</span>
+      </div>
+      <div class="collapsible-body collapsed" id="add-user-body" style="margin-top:8px">
+        <div class="form-group" style="margin-bottom:6px">
+          <label>Username</label>
+          <input type="text" id="new-user-username" placeholder="username" autocomplete="off" />
+        </div>
+        <div class="form-group" style="margin-bottom:6px">
+          <label>Password</label>
+          <input type="password" id="new-user-password" placeholder="password" autocomplete="new-password" />
+        </div>
+        <div class="form-group" style="margin-bottom:8px">
+          <label>Role</label>
+          <select id="new-user-role">
+            <option value="viewer">Viewer</option>
+            <option value="editor">Editor</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div id="new-user-error" style="display:none;font-size:11px;color:var(--accent-red);margin-bottom:6px"></div>
+        <button class="btn btn-primary btn-full btn-sm" id="btn-create-user">+ Create User</button>
+      </div>
+    `;
+    settingsScroll.appendChild(userMgmtSection);
+
+    // Load + render users list
+    const loadUserList = async () => {
+      const area = document.getElementById('user-list-area');
+      if (!area) return;
+      try {
+        const users = await apiListUsers();
+        if (users.length === 0) {
+          area.innerHTML = `<div style="font-size:11px;color:var(--text-muted)">No users found.</div>`;
+          return;
+        }
+        area.innerHTML = `
+          <table style="width:100%;border-collapse:collapse;font-size:11px">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border-color)">
+                <th style="text-align:left;padding:4px 6px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted)">User</th>
+                <th style="text-align:left;padding:4px 6px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted)">Role</th>
+                <th style="padding:4px 6px"></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${users.map(u => `
+                <tr class="user-row" data-uid="${u.id}" style="border-bottom:1px solid var(--border-color)">
+                  <td style="padding:5px 6px;color:${u.id === user.id ? 'var(--accent-blue)' : 'var(--text-bright)'};font-weight:${u.id === user.id ? '700' : '500'}">
+                    ${u.username}${u.id === user.id ? ' <span style="font-size:9px;opacity:0.6">(you)</span>' : ''}
+                  </td>
+                  <td style="padding:5px 6px">
+                    <select class="user-role-select" data-uid="${u.id}" style="font-size:10.5px;padding:2px 4px;background:var(--bg-input);color:var(--text-primary);border:1px solid var(--border-color);border-radius:var(--radius-sm)" ${u.id === user.id ? 'disabled' : ''}>
+                      <option value="viewer" ${u.role === 'viewer' ? 'selected' : ''}>viewer</option>
+                      <option value="editor" ${u.role === 'editor' ? 'selected' : ''}>editor</option>
+                      <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>admin</option>
+                    </select>
+                  </td>
+                  <td style="padding:5px 6px;text-align:right">
+                    ${u.id !== user.id ? `<button class="item-action-btn danger user-delete-btn" data-uid="${u.id}" title="Delete user" style="font-size:13px;line-height:1">×</button>` : ''}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+
+        // Wire role change selects
+        area.querySelectorAll<HTMLSelectElement>('.user-role-select').forEach(sel => {
+          sel.addEventListener('change', async () => {
+            const uid = Number(sel.dataset.uid);
+            const newRole = sel.value as 'admin' | 'editor' | 'viewer';
+            const originalRole = sel.getAttribute('data-original') || sel.value;
+            sel.setAttribute('data-original', newRole);
+            try {
+              await apiUpdateUserRole(uid, newRole);
+              showToast(`Role updated to "${newRole}"`, 'success');
+            } catch (err) {
+              showToast((err as Error).message || 'Could not update role', 'error');
+              sel.value = originalRole;
+            }
+          });
+          sel.setAttribute('data-original', sel.value);
+        });
+
+        // Wire delete buttons
+        area.querySelectorAll<HTMLButtonElement>('.user-delete-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const uid = Number(btn.dataset.uid);
+            const row = btn.closest('.user-row') as HTMLElement;
+            const username = row.querySelector('td')?.textContent?.trim().replace(' (you)', '') || 'this user';
+            if (!confirm(`Delete user "${username}"? This cannot be undone.`)) return;
+            try {
+              btn.disabled = true;
+              await apiDeleteUser(uid);
+              showToast(`User "${username}" deleted`, 'success');
+              await loadUserList();
+            } catch (err) {
+              showToast((err as Error).message || 'Could not delete user', 'error');
+              btn.disabled = false;
+            }
+          });
+        });
+
+      } catch (err) {
+        if (area) area.innerHTML = `<div style="font-size:11px;color:var(--accent-red)">✕ ${(err as Error).message}</div>`;
+      }
+    };
+
+    // Load immediately when Settings tab becomes active
+    loadUserList();
+
+    // Re-load when Settings tab is clicked (so list stays fresh)
+    document.querySelectorAll('.panel-tab[data-tab="settings"]').forEach(tab => {
+      tab.addEventListener('click', loadUserList);
+    });
+
+    // Wire "Create User" button
+    document.getElementById('btn-create-user')?.addEventListener('click', async () => {
+      const usernameEl = document.getElementById('new-user-username') as HTMLInputElement;
+      const passwordEl = document.getElementById('new-user-password') as HTMLInputElement;
+      const roleEl     = document.getElementById('new-user-role')     as HTMLSelectElement;
+      const errorEl    = document.getElementById('new-user-error')    as HTMLDivElement;
+      const submitBtn  = document.getElementById('btn-create-user')   as HTMLButtonElement;
+
+      const username = usernameEl.value.trim();
+      const password = passwordEl.value;
+      const role = roleEl.value as 'admin' | 'editor' | 'viewer';
+
+      errorEl.style.display = 'none';
+
+      if (!username || !password) {
+        errorEl.textContent = 'Username and password are required.';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Creating…';
+
+      try {
+        await apiCreateUser(username, password, role);
+        usernameEl.value = '';
+        passwordEl.value = '';
+        showToast(`User "${username}" created (${role})`, 'success');
+        await loadUserList();
+      } catch (err) {
+        errorEl.textContent = (err as Error).message || 'Could not create user.';
+        errorEl.style.display = 'block';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '+ Create User';
+      }
+    });
+  }
+
   settingsTab.appendChild(settingsScroll);
   leftPanel.appendChild(settingsTab);
 
@@ -892,8 +1066,8 @@ export function buildUI(callbacks: UICallbacks, user: AuthUser): void {
   renderLibraryItems('', callbacks);
 
   // ===== ROLE-BASED UI RESTRICTIONS =====
-  // Hide editor-only controls for viewer accounts
-  if (user.role !== 'editor') {
+  // Hide editor-only controls for viewer accounts (admins have full editor access)
+  if (user.role === 'viewer') {
     // Hide the "Add Custom Item" section entirely
     if (addSection) (addSection as HTMLElement).style.display = 'none';
 
@@ -1871,7 +2045,7 @@ export interface ProjectsModalOptions {
  */
 export function showProjectsModal(options: ProjectsModalOptions): void {
   const { mode, user, saveData, onLoad } = options;
-  const isEditor = user.role === 'editor';
+  const isEditor = user.role === 'editor' || user.role === 'admin';
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';

@@ -12,7 +12,14 @@
 export interface AuthUser {
   id: number;
   username: string;
-  role: 'editor' | 'viewer';
+  role: 'admin' | 'editor' | 'viewer';
+}
+
+export interface UserSummary {
+  id: number;
+  username: string;
+  role: 'admin' | 'editor' | 'viewer';
+  created_at: string;
 }
 
 export interface ProjectSummary {
@@ -153,4 +160,39 @@ export async function apiUpdateProject(
 /** Delete a project. Editor-only. */
 export async function apiDeleteProject(id: number): Promise<void> {
   await request<{ success: boolean }>(`/projects/${id}`, { method: 'DELETE' });
+}
+
+// ── User management endpoints (admin-only) ────────────────────────────────────
+
+/** List all users. Admin-only. */
+export async function apiListUsers(): Promise<UserSummary[]> {
+  return request<UserSummary[]>('/users');
+}
+
+/** Create a new user. Admin-only. */
+export async function apiCreateUser(
+  username: string,
+  password: string,
+  role: 'admin' | 'editor' | 'viewer',
+): Promise<UserSummary> {
+  return request<UserSummary>('/users', {
+    method: 'POST',
+    body: JSON.stringify({ username, password, role }),
+  });
+}
+
+/** Change a user's role. Admin-only. */
+export async function apiUpdateUserRole(
+  id: number,
+  role: 'admin' | 'editor' | 'viewer',
+): Promise<UserSummary> {
+  return request<UserSummary>(`/users/${id}/role`, {
+    method: 'PATCH',
+    body: JSON.stringify({ role }),
+  });
+}
+
+/** Delete a user. Admin-only. */
+export async function apiDeleteUser(id: number): Promise<void> {
+  await request<{ success: boolean }>(`/users/${id}`, { method: 'DELETE' });
 }

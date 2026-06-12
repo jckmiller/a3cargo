@@ -46,6 +46,7 @@ app.use((req, res, next) => {
 
 app.use('/api', require('./routes/auth'));
 app.use('/api/projects', require('./routes/projects'));
+app.use('/api/users', require('./routes/users'));
 
 // Health-check
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));

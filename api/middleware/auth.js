@@ -37,15 +37,27 @@ function requireAuth(req, res, next) {
 }
 
 /**
- * Middleware: ensure the authenticated user has the 'editor' role.
+ * Middleware: ensure the authenticated user has the 'editor' or 'admin' role.
  * Must be used AFTER requireAuth.
  * Returns 403 if the user is a viewer.
  */
 function requireEditor(req, res, next) {
-  if (req.user && req.user.role === 'editor') {
+  if (req.user && (req.user.role === 'editor' || req.user.role === 'admin')) {
     return next();
   }
   return res.status(403).json({ error: 'Editor role required' });
 }
 
-module.exports = { requireAuth, requireEditor, JWT_SECRET };
+/**
+ * Middleware: ensure the authenticated user has the 'admin' role.
+ * Must be used AFTER requireAuth.
+ * Returns 403 if the user is not an admin.
+ */
+function requireAdmin(req, res, next) {
+  if (req.user && req.user.role === 'admin') {
+    return next();
+  }
+  return res.status(403).json({ error: 'Admin role required' });
+}
+
+module.exports = { requireAuth, requireEditor, requireAdmin, JWT_SECRET };

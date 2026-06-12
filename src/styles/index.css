@@ -2167,6 +2167,12 @@ body.light-mode #login-overlay {
   border: 1px solid rgba(107,125,153,0.25);
 }
 
+.user-badge-role.admin {
+  background: rgba(245,158,11,0.18);
+  color: #f59e0b;
+  border: 1px solid rgba(245,158,11,0.35);
+}
+
 body.light-mode .user-badge {
   background: var(--bg-tertiary);
   border-color: var(--border-color);

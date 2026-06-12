@@ -37,7 +37,7 @@ db.exec(`
     username      TEXT    UNIQUE NOT NULL,
     password_hash TEXT    NOT NULL,
     role          TEXT    NOT NULL DEFAULT 'viewer'
-                          CHECK(role IN ('editor', 'viewer')),
+                          CHECK(role IN ('admin', 'editor', 'viewer')),
     created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
   );
 
@@ -88,15 +88,43 @@ const stmts = {
   deleteProject: db.prepare(`DELETE FROM projects WHERE id = ?`),
 };
 
+// ── Migration: add 'admin' role support ───────────────────────────────────────
+// SQLite CHECK constraints cannot be altered after table creation.
+// If the old constraint exists (editor|viewer only), we recreate the table.
+(function migrateRoleConstraint() {
+  const tableSql = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='users'`).get();
+  if (tableSql && !tableSql.sql.includes("'admin'")) {
+    console.log('[db] Migrating users table to support admin role...');
+    db.exec(`
+      PRAGMA foreign_keys = OFF;
+      BEGIN;
+        CREATE TABLE users_new (
+          id            INTEGER PRIMARY KEY AUTOINCREMENT,
+          username      TEXT    UNIQUE NOT NULL,
+          password_hash TEXT    NOT NULL,
+          role          TEXT    NOT NULL DEFAULT 'viewer'
+                                CHECK(role IN ('admin', 'editor', 'viewer')),
+          created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+        INSERT INTO users_new SELECT * FROM users;
+        DROP TABLE users;
+        ALTER TABLE users_new RENAME TO users;
+      COMMIT;
+      PRAGMA foreign_keys = ON;
+    `);
+    console.log('[db] Migration complete.');
+  }
+})();
+
 // ── Default seed ──────────────────────────────────────────────────────────────
 // On a brand-new installation (empty users table) create a default admin
 // account so the app is immediately usable without running any extra scripts.
-// Change the password after first login using 07_create_user.sh or the API.
+// Change the password after first login using the User Management UI.
 
 const userCount = db.prepare('SELECT COUNT(*) AS n FROM users').get();
 if (userCount.n === 0) {
   const hash = bcrypt.hashSync('123123', 10);
-  stmts.createUser.run('admin', hash, 'editor');
+  stmts.createUser.run('admin', hash, 'admin');
   console.log('[db] Seeded default admin account (username: admin / password: 123123)');
 }
 
