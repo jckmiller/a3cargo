@@ -2359,29 +2359,33 @@ async function showManageAccessModal(
   document.getElementById('access-cancel')!.addEventListener('click', () => overlay.remove());
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
 
-  // Load viewer-role users and current grants
+  // Load viewer-role users (required) and current grants (best-effort — may
+  // be empty for a brand-new project or if the server endpoint is unavailable).
   try {
-    const [viewerUsers, grantedViewers] = await Promise.all([
-      // Re-use admin users endpoint and filter to viewers client-side
-      apiListUsers().then(users => users.filter(u => u.role === 'viewer')),
-      apiGetProjectViewers(projectId),
-    ]);
-    allViewers = viewerUsers;
-    grantedIds = new Set(grantedViewers.map(v => v.id));
-
-    if (allViewers.length === 0) {
-      viewersList.innerHTML = `<div style="font-size:11px;color:var(--text-muted);padding:6px 0">No viewer-role users found.</div>`;
-    } else {
-      viewersList.innerHTML = allViewers.map(u => `
-        <label style="display:flex;align-items:center;gap:8px;padding:5px 0;cursor:pointer;font-size:12px;color:var(--text-primary)">
-          <input type="checkbox" data-uid="${u.id}" ${grantedIds.has(u.id) ? 'checked' : ''} />
-          <span>${u.username}</span>
-          <span style="font-size:9.5px;color:var(--text-muted);margin-left:auto">${u.role}</span>
-        </label>
-      `).join('');
-    }
+    allViewers = (await apiListUsers()).filter(u => u.role === 'viewer');
   } catch (err) {
     viewersList.innerHTML = `<div style="font-size:11px;color:var(--accent-red)">✕ Could not load users: ${(err as Error).message}</div>`;
+    return; // Can't continue without the user list
+  }
+
+  // Fetch existing grants separately — silently fall back to empty on failure
+  try {
+    const grantedViewers = await apiGetProjectViewers(projectId);
+    grantedIds = new Set(grantedViewers.map(v => v.id));
+  } catch {
+    grantedIds = new Set(); // New project or old server — no grants yet, that's fine
+  }
+
+  if (allViewers.length === 0) {
+    viewersList.innerHTML = `<div style="font-size:11px;color:var(--text-muted);padding:6px 0">No viewer-role users found.</div>`;
+  } else {
+    viewersList.innerHTML = allViewers.map(u => `
+      <label style="display:flex;align-items:center;gap:8px;padding:5px 0;cursor:pointer;font-size:12px;color:var(--text-primary)">
+        <input type="checkbox" data-uid="${u.id}" ${grantedIds.has(u.id) ? 'checked' : ''} />
+        <span>${u.username}</span>
+        <span style="font-size:9.5px;color:var(--text-muted);margin-left:auto">${u.role}</span>
+      </label>
+    `).join('');
   }
 
   // Save
