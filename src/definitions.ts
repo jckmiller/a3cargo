@@ -282,7 +282,7 @@ export const GRID_SIZES = [1, 2, 3, 4, 6, 8, 12, 24];
 
 /**
  * Default grid size in inches.
- * 6 inches provides good balance between precision and ease of use.
+ * 1 inch provides maximum placement precision.
  */
 export const DEFAULT_GRID_SIZE = 1;
 

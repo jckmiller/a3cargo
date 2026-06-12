@@ -89,7 +89,7 @@ This:
 
 ---
 
-### Step 4 — Add Login Protection *(optional)*
+### Step 4 — Add Basic Auth *(optional, pre-API)*
 
 ```bash
 curl -O https://raw.githubusercontent.com/jckmiller/a3cargo/main/deploy/04_add_auth.sh
@@ -101,11 +101,67 @@ This:
 - Protects the site with HTTP Basic Auth (browser login prompt)
 - Credentials: **username:** `user` / **password:** `123123`
 
+> **Note:** This is a temporary gate. Once you complete Steps 5–7 to set up the API and JWT authentication, Step 6 will remove the Basic Auth in favour of the app's own login system.
+
+---
+
+### Step 5 — Install & Start the API
+
+```bash
+curl -O https://raw.githubusercontent.com/jckmiller/a3cargo/main/deploy/05_setup_api.sh
+sudo bash 05_setup_api.sh
+```
+
+This:
+- Installs Node.js LTS (if not already present)
+- Copies the `api/` source to `/opt/a3cargo-api` and runs `npm install`
+- Creates `/var/lib/a3cargo` as the SQLite data directory
+- Generates random `JWT_SECRET` and `ADMIN_KEY` values and writes them to `/etc/a3cargo-api.env`
+- Registers and starts a **systemd service** called `a3cargo-api` (auto-restarts on failure, survives reboots)
+- Verifies the API is responding via a health-check to `GET /api/health`
+
+> ⚠️ **Save the `ADMIN_KEY` printed at the end** — you will need it in Step 7.
+
+---
+
+### Step 6 — Update Nginx to Proxy the API
+
+```bash
+curl -O https://raw.githubusercontent.com/jckmiller/a3cargo/main/deploy/06_update_nginx_api.sh
+sudo bash 06_update_nginx_api.sh
+```
+
+This:
+- Backs up the existing nginx config
+- Rewrites the nginx server block to proxy `/api/*` to the Node.js API on port `3001`
+- Removes the HTTP Basic Auth protection (replaced by JWT in the app)
+- Reloads nginx
+
+---
+
+### Step 7 — Create Your First User
+
+```bash
+curl -O https://raw.githubusercontent.com/jckmiller/a3cargo/main/deploy/07_create_user.sh
+sudo bash 07_create_user.sh <username> <password> editor
+```
+
+Examples:
+```bash
+sudo bash 07_create_user.sh alice MyPassword123 editor
+sudo bash 07_create_user.sh bob  ViewOnly456    viewer
+```
+
+This posts to `POST /api/register` with the `ADMIN_KEY` from `/etc/a3cargo-api.env` to create the specified user.
+Valid roles: `editor` (can save/load projects) or `viewer` (read-only).
+
+> **Note:** A default `admin` account (`admin` / `123123`) is seeded automatically on first startup. Change its password via the **User Management** panel in the app (Settings tab → User Management) after logging in.
+
 ---
 
 ### ✅ Done!
 
-Visit **https://cargo.neoaiaeon.com** — your app should be live and password-protected.
+Visit **https://cargo.neoaiaeon.com** — your app should be live with full JWT authentication.
 
 ---
 
