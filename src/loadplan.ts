@@ -325,6 +325,10 @@ export function generateLoadPlanHTML(
   const utilization = calculateUtilization(items, container);
   const dist = getWeightDistribution(items, container);
 
+  const netWeight = totalWeight;
+  const grossWeight = netWeight + container.tareWeightLbs;
+  const availWeight = container.maxWeightLbs - netWeight;
+
   let html = `
     <div class="loadplan-summary">
       <div class="loadplan-stat">
@@ -336,8 +340,20 @@ export function generateLoadPlanHTML(
         <div class="lp-stat-label">Volume Used</div>
       </div>
       <div class="loadplan-stat">
-        <div class="lp-stat-value">${totalWeight.toLocaleString()}</div>
-        <div class="lp-stat-label">Total Weight (lbs)</div>
+        <div class="lp-stat-value ${netWeight > container.maxWeightLbs ? 'lp-warn' : 'lp-ok'}">${netWeight.toLocaleString()}</div>
+        <div class="lp-stat-label">Net Weight (lbs)</div>
+      </div>
+      <div class="loadplan-stat">
+        <div class="lp-stat-value">${grossWeight.toLocaleString()}</div>
+        <div class="lp-stat-label">Gross Weight (lbs)</div>
+      </div>
+      <div class="loadplan-stat">
+        <div class="lp-stat-value ${availWeight < 0 ? 'lp-warn' : 'lp-ok'}">${availWeight.toLocaleString()}</div>
+        <div class="lp-stat-label">Available (lbs)</div>
+      </div>
+      <div class="loadplan-stat">
+        <div class="lp-stat-value">${container.maxWeightLbs.toLocaleString()}</div>
+        <div class="lp-stat-label">Max Payload (lbs)</div>
       </div>
       <div class="loadplan-stat">
         <div class="lp-stat-value ${Math.abs(dist.front - dist.back) > 20 ? 'lp-warn' : 'lp-ok'}">${dist.front.toFixed(0)}/${dist.back.toFixed(0)}</div>
@@ -565,9 +581,12 @@ export function generatePrintableLoadPlan(
 
   <div class="summary">
     <div class="summary-card"><div class="value">${steps.length}</div><div class="label">Steps</div></div>
-    <div class="summary-card"><div class="value">${utilization.toFixed(1)}%</div><div class="label">Volume</div></div>
-    <div class="summary-card"><div class="value">${totalWeight.toLocaleString()}</div><div class="label">Total lbs</div></div>
+    <div class="summary-card"><div class="value">${utilization.toFixed(1)}%</div><div class="label">Volume Used</div></div>
     <div class="summary-card"><div class="value">${dist.front.toFixed(0)}/${dist.back.toFixed(0)}</div><div class="label">F/B Balance</div></div>
+    <div class="summary-card"><div class="value" style="color:${totalWeight > container.maxWeightLbs ? '#dc2626' : '#1e40af'}">${totalWeight.toLocaleString()}</div><div class="label">Net Weight (lbs)</div></div>
+    <div class="summary-card"><div class="value">${(totalWeight + container.tareWeightLbs).toLocaleString()}</div><div class="label">Gross Weight (lbs)</div></div>
+    <div class="summary-card"><div class="value" style="color:${(container.maxWeightLbs - totalWeight) < 0 ? '#dc2626' : '#059669'}">${(container.maxWeightLbs - totalWeight).toLocaleString()}</div><div class="label">Available (lbs)</div></div>
+    <div class="summary-card"><div class="value" style="color:#78350f">${container.maxWeightLbs.toLocaleString()}</div><div class="label">Max Payload (lbs)</div></div>
   </div>
 
   <div class="strategy">

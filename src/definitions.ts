@@ -31,6 +31,9 @@ export interface ContainerSpec {
   
   /** Maximum payload weight capacity in pounds */
   maxWeightLbs: number;
+
+  /** Tare weight of the empty container in pounds */
+  tareWeightLbs: number;
   
   /** Internal length in inches (for precise calculations) */
   lengthIn: number;
@@ -54,6 +57,7 @@ export const CONTAINER_SPECS: Record<string, ContainerSpec> = {
     widthFt: 7.71,
     heightFt: 7.87,
     maxWeightLbs: 47900,
+    tareWeightLbs: 4850,
     lengthIn: 232,
     widthIn: 92.5,
     heightIn: 94.5,
@@ -65,6 +69,7 @@ export const CONTAINER_SPECS: Record<string, ContainerSpec> = {
     widthFt: 7.71,
     heightFt: 7.87,
     maxWeightLbs: 58860,
+    tareWeightLbs: 8160,
     lengthIn: 473.5,
     widthIn: 92.5,
     heightIn: 94.5,
@@ -76,6 +81,7 @@ export const CONTAINER_SPECS: Record<string, ContainerSpec> = {
     widthFt: 7.71,
     heightFt: 8.86,
     maxWeightLbs: 58860,
+    tareWeightLbs: 8600,
     lengthIn: 473.5,
     widthIn: 92.5,
     heightIn: 106.3,

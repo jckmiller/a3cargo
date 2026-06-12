@@ -326,19 +326,27 @@ export function buildUI(callbacks: UICallbacks): void {
           <div class="stat-value accent-green" id="stat-volume">0.0%</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Total Weight</div>
-          <div class="stat-value accent-blue" id="stat-weight">0 lbs</div>
-        </div>
-        <div class="stat-card">
           <div class="stat-label">Items</div>
           <div class="stat-value" id="stat-items">0</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Max Weight</div>
+          <div class="stat-label">Net Weight (Cargo)</div>
+          <div class="stat-value accent-blue" id="stat-net-weight">0 lbs</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Gross Weight</div>
+          <div class="stat-value" id="stat-gross-weight">0 lbs</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Available Weight</div>
+          <div class="stat-value accent-green" id="stat-avail-weight">0 lbs</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Max Payload</div>
           <div class="stat-value accent-yellow" id="stat-max-weight">47,900 lbs</div>
         </div>
         <div class="stat-card full-width">
-          <div class="stat-label">Utilization</div>
+          <div class="stat-label">Weight Utilization</div>
           <div class="utilization-bar"><div class="utilization-fill" id="utilization-fill" style="width: 0%"></div></div>
         </div>
       </div>
@@ -1291,32 +1299,47 @@ export function updateItemsList(
 
 export function updateStats(items: CargoItem[], container: ContainerSpec): void {
   const utilization = calculateUtilization(items, container);
-  const totalWeight = calculateTotalWeight(items);
+  const netWeight = calculateTotalWeight(items);        // cargo only
+  const grossWeight = netWeight + container.tareWeightLbs; // tare + cargo
+  const availWeight = container.maxWeightLbs - netWeight;  // remaining payload
+  const weightPct = (netWeight / container.maxWeightLbs) * 100;
 
-  const volEl = document.getElementById('stat-volume');
-  const wtEl = document.getElementById('stat-weight');
-  const itemsEl = document.getElementById('stat-items');
-  const maxWtEl = document.getElementById('stat-max-weight');
-  const fillEl = document.getElementById('utilization-fill');
+  const volEl      = document.getElementById('stat-volume');
+  const itemsEl    = document.getElementById('stat-items');
+  const netWtEl    = document.getElementById('stat-net-weight');
+  const grossWtEl  = document.getElementById('stat-gross-weight');
+  const availWtEl  = document.getElementById('stat-avail-weight');
+  const maxWtEl    = document.getElementById('stat-max-weight');
+  const fillEl     = document.getElementById('utilization-fill');
 
-  if (volEl) volEl.textContent = utilization.toFixed(1) + '%';
-  if (wtEl) wtEl.textContent = totalWeight.toLocaleString() + ' lbs';
-  if (itemsEl) itemsEl.textContent = items.length.toString();
-  if (maxWtEl) maxWtEl.textContent = container.maxWeightLbs.toLocaleString() + ' lbs';
+  if (volEl)     volEl.textContent = utilization.toFixed(1) + '%';
+  if (itemsEl)   itemsEl.textContent = items.length.toString();
+  if (maxWtEl)   maxWtEl.textContent = container.maxWeightLbs.toLocaleString() + ' lbs';
 
-  if (fillEl) {
-    fillEl.style.width = Math.min(utilization, 100) + '%';
-    fillEl.className = 'utilization-fill';
-    if (utilization > 85) fillEl.classList.add('danger');
-    else if (utilization > 60) fillEl.classList.add('warning');
+  if (netWtEl) {
+    netWtEl.textContent = netWeight.toLocaleString() + ' lbs';
+    netWtEl.className = netWeight > container.maxWeightLbs
+      ? 'stat-value accent-red'
+      : 'stat-value accent-blue';
   }
 
-  if (wtEl) {
-    if (totalWeight > container.maxWeightLbs) {
-      wtEl.className = 'stat-value accent-red';
-    } else {
-      wtEl.className = 'stat-value accent-blue';
-    }
+  if (grossWtEl) {
+    grossWtEl.textContent = grossWeight.toLocaleString() + ' lbs';
+    grossWtEl.className = 'stat-value';
+  }
+
+  if (availWtEl) {
+    availWtEl.textContent = availWeight.toLocaleString() + ' lbs';
+    availWtEl.className = availWeight < 0
+      ? 'stat-value accent-red'
+      : 'stat-value accent-green';
+  }
+
+  if (fillEl) {
+    fillEl.style.width = Math.min(weightPct, 100) + '%';
+    fillEl.className = 'utilization-fill';
+    if (weightPct > 90) fillEl.classList.add('danger');
+    else if (weightPct > 70) fillEl.classList.add('warning');
   }
 }
 
@@ -1471,14 +1494,35 @@ export function showManifestModal(
         </div>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
         <div class="stat-card">
           <div class="stat-label">Volume Used</div>
           <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-bright)">${totalVolume.toFixed(1)} ft³ / ${containerVolume.toFixed(1)} ft³</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Weight Capacity</div>
-          <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:${totalWeight > container.maxWeightLbs ? 'var(--accent-red)' : 'var(--text-bright)'}">${totalWeight.toLocaleString()} / ${container.maxWeightLbs.toLocaleString()} lbs</div>
+          <div class="stat-label">Max Payload (Default)</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-bright)">${container.maxWeightLbs.toLocaleString()} lbs</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px">
+        <div class="stat-card">
+          <div class="stat-label">Net Weight (Cargo)</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:${totalWeight > container.maxWeightLbs ? 'var(--accent-red)' : 'var(--accent-blue)'}">
+            ${totalWeight.toLocaleString()} lbs
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Gross Weight</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-bright)">
+            ${(totalWeight + container.tareWeightLbs).toLocaleString()} lbs
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Available Weight</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:${(container.maxWeightLbs - totalWeight) < 0 ? 'var(--accent-red)' : 'var(--accent-green)'}">
+            ${(container.maxWeightLbs - totalWeight).toLocaleString()} lbs
+          </div>
         </div>
       </div>
 
@@ -1613,7 +1657,12 @@ td{padding:7px 10px;border-bottom:1px solid #eef2f7;font-family:'JetBrains Mono'
 </style></head><body>
 <div class="header"><div class="header-brand">${logoHtml}<div><h1>Shipping Pro</h1><div class="subtitle">Container Loading Manifest</div></div></div>
 <div class="date">Container: <strong>${container.label}</strong><br>${container.lengthIn}" &times; ${container.widthIn}" &times; ${container.heightIn}"<br>${new Date().toLocaleString()}</div></div>
-<p>Utilization: ${utilization.toFixed(1)}% &nbsp;|&nbsp; Weight: ${totalWeight.toLocaleString()} / ${container.maxWeightLbs.toLocaleString()} lbs &nbsp;|&nbsp; Items: ${items.length}</p>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;border:1px solid #c7d8f0;border-radius:6px;padding:12px;background:#f8fafd">
+  <div style="text-align:center"><div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:#1e40af">${totalWeight.toLocaleString()}</div><div style="font-size:8px;font-weight:700;text-transform:uppercase;color:#4b6280;letter-spacing:0.6px">Net Weight (lbs)</div></div>
+  <div style="text-align:center"><div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:#1e3a5f">${(totalWeight + container.tareWeightLbs).toLocaleString()}</div><div style="font-size:8px;font-weight:700;text-transform:uppercase;color:#4b6280;letter-spacing:0.6px">Gross Weight (lbs)</div></div>
+  <div style="text-align:center"><div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:${(container.maxWeightLbs - totalWeight) < 0 ? '#dc2626' : '#059669'}">${(container.maxWeightLbs - totalWeight).toLocaleString()}</div><div style="font-size:8px;font-weight:700;text-transform:uppercase;color:#4b6280;letter-spacing:0.6px">Available (lbs)</div></div>
+  <div style="text-align:center"><div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:#78350f">${container.maxWeightLbs.toLocaleString()}</div><div style="font-size:8px;font-weight:700;text-transform:uppercase;color:#4b6280;letter-spacing:0.6px">Max Payload (lbs)</div></div>
+</div>
 <br>
 ${snapshotHtmlBlocks ? `<div class="snapshots-section"><div class="snapshots-heading">3D View Snapshots</div>${snapshotHtmlBlocks}</div>` : ''}
 <table><thead><tr><th>#</th><th>Label</th><th>Category</th><th>Dimensions</th><th>Weight</th><th>Position</th><th>Volume</th></tr></thead><tbody>
@@ -1676,7 +1725,10 @@ function generateManifestText(
   text += `Date: ${new Date().toLocaleString()}\n\n`;
   text += `SUMMARY\n${'-'.repeat(40)}\n`;
   text += `Volume Utilization: ${utilization.toFixed(1)}%\n`;
-  text += `Total Weight: ${totalWeight.toLocaleString()} / ${container.maxWeightLbs.toLocaleString()} lbs\n`;
+  text += `Net Weight (Cargo):  ${totalWeight.toLocaleString()} lbs\n`;
+  text += `Gross Weight:        ${(totalWeight + container.tareWeightLbs).toLocaleString()} lbs\n`;
+  text += `Available Weight:    ${(container.maxWeightLbs - totalWeight).toLocaleString()} lbs\n`;
+  text += `Max Payload (Default): ${container.maxWeightLbs.toLocaleString()} lbs\n`;
   text += `Total Items: ${items.length}\n\n`;
   text += `ITEMS\n${'-'.repeat(40)}\n`;
   items.forEach((item, i) => {
