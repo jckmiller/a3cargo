@@ -628,6 +628,9 @@ export function buildUI(callbacks: UICallbacks, user: AuthUser): void {
   settingsScroll.appendChild(settingsSection3);
 
   // ===== USER MANAGEMENT SECTION (admin-only) =====
+  // Declared here so the wiring block (which runs after document.body.appendChild)
+  // can still reference the function defined inside the admin-only if-block.
+  let _loadUserList: (() => Promise<void>) | undefined;
   if (user.role === 'admin') {
     const userMgmtSection = document.createElement('div');
     userMgmtSection.className = 'panel-section';
@@ -667,7 +670,7 @@ export function buildUI(callbacks: UICallbacks, user: AuthUser): void {
     settingsScroll.appendChild(userMgmtSection);
 
     // Load + render users list
-    const loadUserList = async () => {
+    _loadUserList = async () => {
       const area = document.getElementById('user-list-area');
       if (!area) return;
       try {
@@ -736,7 +739,7 @@ export function buildUI(callbacks: UICallbacks, user: AuthUser): void {
               btn.disabled = true;
               await apiDeleteUser(uid);
               showToast(`User "${username}" deleted`, 'success');
-              await loadUserList();
+              await _loadUserList!();
             } catch (err) {
               showToast((err as Error).message || 'Could not delete user', 'error');
               btn.disabled = false;
@@ -758,58 +761,6 @@ export function buildUI(callbacks: UICallbacks, user: AuthUser): void {
       }
     };
 
-    // Load immediately when Settings tab becomes active
-    loadUserList();
-
-    // Re-load when Settings tab is clicked (so list stays fresh)
-    document.querySelectorAll('.panel-tab[data-tab="settings"]').forEach(tab => {
-      tab.addEventListener('click', loadUserList);
-    });
-
-    // Wire "Create User" button
-    document.getElementById('btn-create-user')?.addEventListener('click', async () => {
-      const usernameEl = document.getElementById('new-user-username') as HTMLInputElement;
-      const passwordEl = document.getElementById('new-user-password') as HTMLInputElement;
-      const roleEl     = document.getElementById('new-user-role')     as HTMLSelectElement;
-      const errorEl    = document.getElementById('new-user-error')    as HTMLDivElement;
-      const submitBtn  = document.getElementById('btn-create-user')   as HTMLButtonElement;
-
-      const username = usernameEl.value.trim();
-      const password = passwordEl.value;
-      const role = roleEl.value as 'admin' | 'editor' | 'viewer';
-
-      errorEl.style.display = 'none';
-
-      if (!username || !password) {
-        errorEl.textContent = 'Username and password are required.';
-        errorEl.style.display = 'block';
-        return;
-      }
-
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Creating…';
-
-      try {
-        const newUser = await apiCreateUser(username, password, role);
-        usernameEl.value = '';
-        passwordEl.value = '';
-        showToast(`User "${username}" created (${role})`, 'success');
-        await loadUserList();
-        // Briefly highlight the newly created row
-        const newRow = document.querySelector<HTMLElement>(`.user-row[data-uid="${newUser.id}"]`);
-        if (newRow) {
-          newRow.style.transition = 'background 0.2s ease';
-          newRow.style.background = 'var(--accent-green-dim, rgba(52,211,153,0.15))';
-          setTimeout(() => { newRow.style.background = ''; }, 2000);
-        }
-      } catch (err) {
-        errorEl.textContent = (err as Error).message || 'Could not create user.';
-        errorEl.style.display = 'block';
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = '+ Create User';
-      }
-    });
   }
 
   settingsTab.appendChild(settingsScroll);
@@ -877,6 +828,64 @@ export function buildUI(callbacks: UICallbacks, user: AuthUser): void {
   app.appendChild(viewport);
 
   document.body.appendChild(app);
+
+  // ===== USER MANAGEMENT WIRING (must run after DOM is in document) =====
+  // loadUserList / btn-create-user only exist in the DOM once app is appended,
+  // so all document.getElementById / querySelector calls must happen here.
+  if (user.role === 'admin' && _loadUserList) {
+    // Load immediately now that the Settings panel is in the DOM
+    _loadUserList();
+
+    // Re-load whenever the Settings tab is clicked (keeps list fresh)
+    document.querySelectorAll('.panel-tab[data-tab="settings"]').forEach(tab => {
+      tab.addEventListener('click', _loadUserList!);
+    });
+
+    // Wire "Create User" button
+    document.getElementById('btn-create-user')?.addEventListener('click', async () => {
+      const usernameEl = document.getElementById('new-user-username') as HTMLInputElement;
+      const passwordEl = document.getElementById('new-user-password') as HTMLInputElement;
+      const roleEl     = document.getElementById('new-user-role')     as HTMLSelectElement;
+      const errorEl    = document.getElementById('new-user-error')    as HTMLDivElement;
+      const submitBtn  = document.getElementById('btn-create-user')   as HTMLButtonElement;
+
+      const username = usernameEl.value.trim();
+      const password = passwordEl.value;
+      const role = roleEl.value as 'admin' | 'editor' | 'viewer';
+
+      errorEl.style.display = 'none';
+
+      if (!username || !password) {
+        errorEl.textContent = 'Username and password are required.';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Creating…';
+
+      try {
+        const newUser = await apiCreateUser(username, password, role);
+        usernameEl.value = '';
+        passwordEl.value = '';
+        showToast(`User "${username}" created (${role})`, 'success');
+        await _loadUserList!();
+        // Briefly highlight the newly created row
+        const newRow = document.querySelector<HTMLElement>(`.user-row[data-uid="${newUser.id}"]`);
+        if (newRow) {
+          newRow.style.transition = 'background 0.2s ease';
+          newRow.style.background = 'var(--accent-green-dim, rgba(52,211,153,0.15))';
+          setTimeout(() => { newRow.style.background = ''; }, 2000);
+        }
+      } catch (err) {
+        errorEl.textContent = (err as Error).message || 'Could not create user.';
+        errorEl.style.display = 'block';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '+ Create User';
+      }
+    });
+  }
 
   // ===== INJECT LOGO INTO HEADER ONCE LOADED =====
   loadLogoDataUrl().then(dataUrl => {
