@@ -96,6 +96,7 @@ export interface UICallbacks {
   onEditItem: (id: string, changes: Partial<Pick<CargoItem, 'label' | 'lengthIn' | 'widthIn' | 'heightIn' | 'weightLbs' | 'category' | 'color' | 'acceptsOnTop' | 'canStackOn' | 'hazmatLevel'>>) => void;
   onSaveLoad: () => void;
   onLoadFile: () => void;
+  onImportFile: () => void;
 }
 
 // ============================================================================
@@ -801,6 +802,7 @@ export function buildUI(callbacks: UICallbacks, user: AuthUser): void {
     <div class="toolbar-divider"></div>
     <button class="toolbar-btn" id="btn-save-load" title="Save Load to File">💾 Save</button>
     <button class="toolbar-btn" id="btn-load-file" title="Load File">📂 Load</button>
+    <button class="toolbar-btn" id="btn-import-file" title="Import layout from a local JSON file">⬆ Import</button>
     <div class="toolbar-divider"></div>
     <button class="toolbar-btn" id="btn-loadplan" title="Step-by-Step Load Plan">Load Plan</button>
     <button class="toolbar-btn" id="btn-manifest" title="Loading Manifest">Manifest</button>
@@ -1019,9 +1021,10 @@ export function buildUI(callbacks: UICallbacks, user: AuthUser): void {
   document.getElementById('btn-manifest')!.addEventListener('click', () => callbacks.onShowManifest());
   document.getElementById('btn-loadplan')!.addEventListener('click', () => callbacks.onShowLoadPlan());
   
-  // Save/Load buttons
+  // Save/Load/Import buttons
   document.getElementById('btn-save-load')!.addEventListener('click', () => callbacks.onSaveLoad());
   document.getElementById('btn-load-file')!.addEventListener('click', () => callbacks.onLoadFile());
+  document.getElementById('btn-import-file')!.addEventListener('click', () => callbacks.onImportFile());
 
   document.getElementById('btn-rotate-sel')!.addEventListener('click', () => {
     window.dispatchEvent(new CustomEvent('rotateSelected', { detail: { type: 'y' } }));

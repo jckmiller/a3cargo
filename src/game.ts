@@ -362,6 +362,7 @@ export class ContainerVizApp {
       onEditItem: (id, changes) => this.editItem(id, changes),
       onSaveLoad: () => this.saveLoad(),
       onLoadFile: () => this.loadFile(),
+      onImportFile: () => this.importLocalFile(),
     };
     buildUI(this.callbacks, this.user);
   }
@@ -1012,6 +1013,56 @@ export class ContainerVizApp {
       `Loaded "${savedLoad.loadName || savedLoad.containerType}" — ${savedLoad.items.length} items`,
       'success'
     );
+  }
+
+  /**
+   * Imports a saved layout from a local JSON file on disk.
+   * Opens a native file picker, reads the selected .json file, and
+   * passes the parsed data directly into applyLoadedData() — the same
+   * routine used by the cloud load path.  Fully backwards-compatible
+   * with the old v1.0 export format.
+   */
+  private importLocalFile(): void {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.style.display = 'none';
+    document.body.appendChild(input);
+
+    input.addEventListener('change', () => {
+      const file = input.files?.[0];
+      document.body.removeChild(input);
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const raw = e.target?.result as string;
+          const parsed = JSON.parse(raw);
+
+          // Basic shape check before handing off to applyLoadedData
+          if (!parsed || typeof parsed !== 'object' || !parsed.version || !parsed.items) {
+            showToast('Invalid file — not a recognised A3 Shipping Pro layout', 'error');
+            return;
+          }
+
+          this.applyLoadedData(parsed as SavedLoad);
+        } catch {
+          showToast('Could not read file — make sure it is a valid JSON layout', 'error');
+        }
+      };
+      reader.onerror = () => {
+        showToast('Error reading file', 'error');
+      };
+      reader.readAsText(file);
+    });
+
+    // Handle cancel without leaving an orphan <input> in the DOM
+    input.addEventListener('cancel', () => {
+      if (document.body.contains(input)) document.body.removeChild(input);
+    });
+
+    input.click();
   }
 
   private resetView(): void {
