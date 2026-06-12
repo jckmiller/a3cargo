@@ -2267,6 +2267,13 @@ export function showProjectsModal(options: ProjectsModalOptions): void {
         const project = await apiCreateProject(name, saveData as object, visibility);
         overlay.remove();
         showToast(`Project "${project.name}" saved!`, 'success');
+        // If the project is restricted, immediately open the access manager
+        // so the editor/admin can choose which viewers can see it.
+        if (visibility === 'restricted' && user.role === 'admin') {
+          showManageAccessModal(project.id, project.name, 'restricted', () => {});
+        } else if (visibility === 'restricted') {
+          showToast('Ask an admin to grant viewer access via the 🔑 button in the project list.', 'warning');
+        }
       } catch (err) {
         showToast((err as Error).message || 'Could not save project', 'error');
         btn.disabled = false;
