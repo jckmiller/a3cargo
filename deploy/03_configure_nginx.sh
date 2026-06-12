@@ -11,7 +11,7 @@
 set -e
 
 DOMAIN="cargo.neoaiaeon.com"
-EMAIL="admin@neoaiaeon.com"   # <-- Change this to your real email for SSL cert notices
+EMAIL="jason@jckmiller.com"   # <-- Change this to your real email for SSL cert notices
 HOST_PORT=8080
 
 echo "======================================"
