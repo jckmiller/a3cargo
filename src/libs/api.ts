@@ -27,8 +27,15 @@ export interface ProjectSummary {
   owner_id: number;
   owner_name: string;
   name: string;
+  visibility: 'public' | 'restricted';
   created_at: string;
   updated_at: string;
+}
+
+export interface ProjectViewerEntry {
+  id: number;
+  username: string;
+  role: string;
 }
 
 export interface ProjectFull extends ProjectSummary {
@@ -154,17 +161,21 @@ export async function apiGetProject(id: number): Promise<ProjectFull> {
 }
 
 /** Create a new project. Editor-only. */
-export async function apiCreateProject(name: string, data: object): Promise<ProjectFull> {
+export async function apiCreateProject(
+  name: string,
+  data: object,
+  visibility: 'public' | 'restricted' = 'public',
+): Promise<ProjectFull> {
   return request<ProjectFull>('/projects', {
     method: 'POST',
-    body: JSON.stringify({ name, data }),
+    body: JSON.stringify({ name, data, visibility }),
   });
 }
 
 /** Update an existing project. Editor-only. */
 export async function apiUpdateProject(
   id: number,
-  fields: { name?: string; data?: object },
+  fields: { name?: string; data?: object; visibility?: 'public' | 'restricted' },
 ): Promise<ProjectFull> {
   return request<ProjectFull>(`/projects/${id}`, {
     method: 'PUT',
@@ -210,4 +221,19 @@ export async function apiUpdateUserRole(
 /** Delete a user. Admin-only. */
 export async function apiDeleteUser(id: number): Promise<void> {
   await request<{ success: boolean }>(`/users/${id}`, { method: 'DELETE' });
+}
+
+// ── Project viewer management (admin-only) ────────────────────────────────────
+
+/** Get the list of viewer-users granted access to a restricted project. Admin-only. */
+export async function apiGetProjectViewers(projectId: number): Promise<ProjectViewerEntry[]> {
+  return request<ProjectViewerEntry[]>(`/projects/${projectId}/viewers`);
+}
+
+/** Replace the full viewer grant list for a project. Admin-only. */
+export async function apiSetProjectViewers(projectId: number, userIds: number[]): Promise<ProjectViewerEntry[]> {
+  return request<ProjectViewerEntry[]>(`/projects/${projectId}/viewers`, {
+    method: 'PUT',
+    body: JSON.stringify({ userIds }),
+  });
 }

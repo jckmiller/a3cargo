@@ -45,9 +45,17 @@ db.exec(`
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     owner_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name        TEXT    NOT NULL,
-    data        TEXT    NOT NULL,   -- JSON blob: SavedLoad format
+    data        TEXT    NOT NULL,
+    visibility  TEXT    NOT NULL DEFAULT 'public'
+                        CHECK(visibility IN ('public', 'restricted')),
     created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
     updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS project_viewers (
+    project_id  INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    user_id     INTEGER NOT NULL REFERENCES users(id)    ON DELETE CASCADE,
+    PRIMARY KEY (project_id, user_id)
   );
 `);
 
@@ -59,19 +67,32 @@ const stmts = {
   findByUsername:db.prepare(`SELECT * FROM users WHERE username = ?`),
   findById:      db.prepare(`SELECT id, username, role, created_at FROM users WHERE id = ?`),
   listUsers:     db.prepare(`SELECT id, username, role, created_at FROM users ORDER BY id`),
+  listViewers:   db.prepare(`SELECT id, username, role, created_at FROM users WHERE role = 'viewer' ORDER BY id`),
   deleteUser:    db.prepare(`DELETE FROM users WHERE id = ?`),
   updateRole:    db.prepare(`UPDATE users SET role = ? WHERE id = ?`),
 
   // Projects
   createProject: db.prepare(`
-    INSERT INTO projects (owner_id, name, data)
-    VALUES (?, ?, ?)
+    INSERT INTO projects (owner_id, name, data, visibility)
+    VALUES (?, ?, ?, ?)
   `),
   listProjects:  db.prepare(`
-    SELECT p.id, p.owner_id, p.name, p.created_at, p.updated_at,
+    SELECT p.id, p.owner_id, p.name, p.visibility, p.created_at, p.updated_at,
            u.username AS owner_name
     FROM   projects p
     JOIN   users    u ON u.id = p.owner_id
+    ORDER  BY p.updated_at DESC
+  `),
+  listProjectsForViewer: db.prepare(`
+    SELECT p.id, p.owner_id, p.name, p.visibility, p.created_at, p.updated_at,
+           u.username AS owner_name
+    FROM   projects p
+    JOIN   users    u ON u.id = p.owner_id
+    WHERE  p.visibility = 'public'
+       OR  EXISTS (
+             SELECT 1 FROM project_viewers pv
+             WHERE  pv.project_id = p.id AND pv.user_id = ?
+           )
     ORDER  BY p.updated_at DESC
   `),
   getProject:    db.prepare(`
@@ -85,7 +106,31 @@ const stmts = {
     SET    name = ?, data = ?, updated_at = datetime('now')
     WHERE  id = ?
   `),
+  updateProjectVisibility: db.prepare(`
+    UPDATE projects SET visibility = ?, updated_at = datetime('now') WHERE id = ?
+  `),
   deleteProject: db.prepare(`DELETE FROM projects WHERE id = ?`),
+
+  // Project viewers
+  listProjectViewers:  db.prepare(`
+    SELECT u.id, u.username, u.role
+    FROM   project_viewers pv
+    JOIN   users u ON u.id = pv.user_id
+    WHERE  pv.project_id = ?
+    ORDER  BY u.username
+  `),
+  addProjectViewer:    db.prepare(`
+    INSERT OR IGNORE INTO project_viewers (project_id, user_id) VALUES (?, ?)
+  `),
+  removeProjectViewer: db.prepare(`
+    DELETE FROM project_viewers WHERE project_id = ? AND user_id = ?
+  `),
+  clearProjectViewers: db.prepare(`
+    DELETE FROM project_viewers WHERE project_id = ?
+  `),
+  viewerCanAccess: db.prepare(`
+    SELECT 1 FROM project_viewers WHERE project_id = ? AND user_id = ?
+  `),
 };
 
 // ── Migration: add 'admin' role support ───────────────────────────────────────
@@ -112,6 +157,16 @@ const stmts = {
       COMMIT;
       PRAGMA foreign_keys = ON;
     `);
+    console.log('[db] Migration complete.');
+  }
+})();
+
+// ── Migration: add visibility column to existing projects table ───────────────
+(function migrateProjectVisibility() {
+  const tableSql = db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='projects'`).get();
+  if (tableSql && !tableSql.sql.includes('visibility')) {
+    console.log('[db] Migrating projects table to add visibility column...');
+    db.exec(`ALTER TABLE projects ADD COLUMN visibility TEXT NOT NULL DEFAULT 'public'`);
     console.log('[db] Migration complete.');
   }
 })();

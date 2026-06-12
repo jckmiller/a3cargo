@@ -56,6 +56,8 @@ import {
   apiCreateUser,
   apiUpdateUserRole,
   apiDeleteUser,
+  apiGetProjectViewers,
+  apiSetProjectViewers,
   ProjectSummary,
 } from "./libs/api";
 import { logout } from "./auth";
@@ -2082,10 +2084,17 @@ export function showProjectsModal(options: ProjectsModalOptions): void {
       <h2>${titleText}</h2>
 
       ${mode === 'save' ? `
-        <div class="form-group" style="margin-bottom:12px">
+        <div class="form-group" style="margin-bottom:8px">
           <label>Project Name</label>
           <input type="text" id="proj-name-input" placeholder="e.g. Container Load #42"
                  value="" style="width:100%" autocomplete="off" />
+        </div>
+        <div class="form-group" style="margin-bottom:12px">
+          <label>Visibility</label>
+          <select id="proj-visibility-input" style="width:100%">
+            <option value="public">🌐 Public — all users can see this project</option>
+            <option value="restricted">🔒 Restricted — only granted viewers can see this</option>
+          </select>
         </div>
         <button class="btn btn-primary btn-full" id="proj-save-new" style="margin-bottom:16px">
           Save as New Project
@@ -2132,23 +2141,42 @@ export function showProjectsModal(options: ProjectsModalOptions): void {
 
       listArea.innerHTML = projects.map(p => {
         const date = new Date(p.updated_at).toLocaleDateString();
+        const visIcon = p.visibility === 'restricted' ? '🔒' : '🌐';
+        const visLabel = p.visibility === 'restricted' ? 'restricted' : 'public';
         return `
           <div class="proj-row" data-proj-id="${p.id}" style="display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--border-color);cursor:pointer">
             <div style="flex:1;min-width:0">
               <div style="font-size:12.5px;font-weight:600;color:var(--text-bright);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
-              <div style="font-size:10px;color:var(--text-muted)">by ${p.owner_name} · ${date}</div>
+              <div style="font-size:10px;color:var(--text-muted);display:flex;align-items:center;gap:5px">
+                <span>by ${p.owner_name} · ${date}</span>
+                <span style="font-size:9.5px;padding:1px 5px;border-radius:3px;border:1px solid var(--border-color);color:var(--text-muted)">${visIcon} ${visLabel}</span>
+              </div>
             </div>
             ${mode === 'load' ? `
               <button class="btn btn-sm btn-primary proj-load-btn" data-proj-id="${p.id}">Load</button>
             ` : `
               <button class="btn btn-sm btn-secondary proj-overwrite-btn" data-proj-id="${p.id}" data-proj-name="${p.name}">Overwrite</button>
             `}
+            ${user.role === 'admin' ? `
+              <button class="btn btn-sm btn-secondary proj-access-btn" data-proj-id="${p.id}" data-proj-name="${p.name}" data-proj-visibility="${p.visibility}" title="Manage viewer access">🔑</button>
+            ` : ''}
             ${isEditor ? `
               <button class="btn btn-sm btn-danger proj-delete-btn" data-proj-id="${p.id}" title="Delete project">×</button>
             ` : ''}
           </div>
         `;
       }).join('');
+
+      // ── Access button (admin only) ────────────────────────────────────────
+      listArea.querySelectorAll('.proj-access-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const id = Number((btn as HTMLElement).dataset.projId);
+          const projName = (btn as HTMLElement).dataset.projName!;
+          const visibility = (btn as HTMLElement).dataset.projVisibility as 'public' | 'restricted';
+          showManageAccessModal(id, projName, visibility, loadProjectsList);
+        });
+      });
 
       // ── Load button ──────────────────────────────────────────────────────
       listArea.querySelectorAll('.proj-load-btn').forEach(btn => {
@@ -2230,11 +2258,13 @@ export function showProjectsModal(options: ProjectsModalOptions): void {
         nameInput.focus();
         return;
       }
+      const visibilityInput = document.getElementById('proj-visibility-input') as HTMLSelectElement | null;
+      const visibility = (visibilityInput?.value as 'public' | 'restricted') ?? 'public';
       const btn = document.getElementById('proj-save-new') as HTMLButtonElement;
       btn.disabled = true;
       btn.textContent = 'Saving…';
       try {
-        const project = await apiCreateProject(name, saveData as object);
+        const project = await apiCreateProject(name, saveData as object, visibility);
         overlay.remove();
         showToast(`Project "${project.name}" saved!`, 'success');
       } catch (err) {
@@ -2248,4 +2278,131 @@ export function showProjectsModal(options: ProjectsModalOptions): void {
       if (e.key === 'Enter') document.getElementById('proj-save-new')?.click();
     });
   }
+}
+
+// ============================================================================
+// MANAGE PROJECT ACCESS MODAL (admin-only)
+// ============================================================================
+
+/**
+ * Opens a modal that lets an admin change the visibility of a project and
+ * choose which viewer-role users are allowed to see it when restricted.
+ */
+async function showManageAccessModal(
+  projectId: number,
+  projectName: string,
+  currentVisibility: 'public' | 'restricted',
+  onSaved: () => void,
+): Promise<void> {
+  // Fetch viewers and all viewer-role users in parallel
+  let allViewers: { id: number; username: string; role: string }[] = [];
+  let grantedIds: Set<number> = new Set();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal small" style="position:relative;min-width:380px">
+      <h2>🔑 Manage Access</h2>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">
+        Project: <strong style="color:var(--text-bright)">${projectName}</strong>
+      </p>
+
+      <div class="form-group" style="margin-bottom:14px">
+        <label>Visibility</label>
+        <select id="access-visibility" style="width:100%">
+          <option value="public"     ${currentVisibility === 'public'     ? 'selected' : ''}>🌐 Public — all users can see this project</option>
+          <option value="restricted" ${currentVisibility === 'restricted' ? 'selected' : ''}>🔒 Restricted — only granted viewers can see this</option>
+        </select>
+      </div>
+
+      <div id="access-viewers-section" style="display:${currentVisibility === 'restricted' ? 'block' : 'none'}">
+        <div style="font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">
+          Viewer Access
+        </div>
+        <div id="access-viewers-list" style="max-height:200px;overflow-y:auto;border:1px solid var(--border-color);border-radius:var(--radius-sm);padding:6px 10px;background:var(--bg-card)">
+          <div style="font-size:11px;color:var(--text-muted)">Loading viewers…</div>
+        </div>
+        <p style="font-size:10.5px;color:var(--text-muted);margin-top:6px">
+          Check the users who should have access to this restricted project.
+        </p>
+      </div>
+
+      <div id="access-error" style="display:none;font-size:11px;color:var(--accent-red);margin-bottom:8px"></div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+        <button class="btn btn-secondary" id="access-cancel">Cancel</button>
+        <button class="btn btn-primary" id="access-save">Save</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  const visibilitySelect = document.getElementById('access-visibility') as HTMLSelectElement;
+  const viewersSection   = document.getElementById('access-viewers-section') as HTMLDivElement;
+  const viewersList      = document.getElementById('access-viewers-list') as HTMLDivElement;
+  const errorEl          = document.getElementById('access-error') as HTMLDivElement;
+
+  // Show/hide viewer checkboxes based on visibility
+  visibilitySelect.addEventListener('change', () => {
+    viewersSection.style.display = visibilitySelect.value === 'restricted' ? 'block' : 'none';
+  });
+
+  // Close
+  document.getElementById('access-cancel')!.addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+  // Load viewer-role users and current grants
+  try {
+    const [viewerUsers, grantedViewers] = await Promise.all([
+      // Re-use admin users endpoint and filter to viewers client-side
+      apiListUsers().then(users => users.filter(u => u.role === 'viewer')),
+      apiGetProjectViewers(projectId),
+    ]);
+    allViewers = viewerUsers;
+    grantedIds = new Set(grantedViewers.map(v => v.id));
+
+    if (allViewers.length === 0) {
+      viewersList.innerHTML = `<div style="font-size:11px;color:var(--text-muted);padding:6px 0">No viewer-role users found.</div>`;
+    } else {
+      viewersList.innerHTML = allViewers.map(u => `
+        <label style="display:flex;align-items:center;gap:8px;padding:5px 0;cursor:pointer;font-size:12px;color:var(--text-primary)">
+          <input type="checkbox" data-uid="${u.id}" ${grantedIds.has(u.id) ? 'checked' : ''} />
+          <span>${u.username}</span>
+          <span style="font-size:9.5px;color:var(--text-muted);margin-left:auto">${u.role}</span>
+        </label>
+      `).join('');
+    }
+  } catch (err) {
+    viewersList.innerHTML = `<div style="font-size:11px;color:var(--accent-red)">✕ Could not load users: ${(err as Error).message}</div>`;
+  }
+
+  // Save
+  document.getElementById('access-save')!.addEventListener('click', async () => {
+    const newVisibility = visibilitySelect.value as 'public' | 'restricted';
+    const saveBtn = document.getElementById('access-save') as HTMLButtonElement;
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving…';
+    errorEl.style.display = 'none';
+
+    try {
+      // 1. Update visibility
+      await apiUpdateProject(projectId, { visibility: newVisibility });
+
+      // 2. Update viewer grants (only meaningful when restricted, but safe to set always)
+      const checkedIds = Array.from(
+        viewersList.querySelectorAll<HTMLInputElement>('input[type="checkbox"]:checked')
+      ).map(cb => Number(cb.dataset.uid));
+      await apiSetProjectViewers(projectId, newVisibility === 'restricted' ? checkedIds : []);
+
+      overlay.remove();
+      showToast('Access settings saved', 'success');
+      onSaved();
+    } catch (err) {
+      errorEl.textContent = (err as Error).message || 'Could not save access settings';
+      errorEl.style.display = 'block';
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save';
+    }
+  });
 }
