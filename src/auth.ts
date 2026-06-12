@@ -12,6 +12,7 @@
  */
 
 import { apiLogin, apiGetMe, clearAuth, getToken, AuthUser } from './libs/api';
+import { loadLogoDataUrl } from './logo';
 
 /**
  * Ensure the user is authenticated.
@@ -36,18 +37,19 @@ export async function requireAuth(): Promise<AuthUser> {
 /**
  * Renders the login overlay and resolves when the user authenticates.
  */
-function showLoginScreen(): Promise<AuthUser> {
+async function showLoginScreen(): Promise<AuthUser> {
+  const logoDataUrl = await loadLogoDataUrl();
+  const logoHtml = logoDataUrl
+    ? `<img src="${logoDataUrl}" alt="Logo" class="login-logo-img" />`
+    : `<div class="login-logo-icon">A3</div>`;
+
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
     overlay.id = 'login-overlay';
     overlay.innerHTML = `
       <div class="login-card">
         <div class="login-logo">
-          <div class="login-logo-icon">A3</div>
-          <div class="login-logo-text">
-            <h1>Shipping Pro</h1>
-            <p>3D Container Loading</p>
-          </div>
+          ${logoHtml}
         </div>
 
         <form id="login-form" autocomplete="on" novalidate>

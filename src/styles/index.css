@@ -2007,6 +2007,7 @@ body.light-mode #login-overlay {
 .login-logo {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 14px;
   margin-bottom: 32px;
 }
@@ -2040,6 +2041,16 @@ body.light-mode #login-overlay {
   color: var(--text-muted);
   margin: 0;
   font-weight: 500;
+}
+
+.login-logo-img {
+  max-width: 220px;
+  max-height: 80px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
 }
 
 .login-field {
