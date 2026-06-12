@@ -745,7 +745,16 @@ export function buildUI(callbacks: UICallbacks, user: AuthUser): void {
         });
 
       } catch (err) {
-        if (area) area.innerHTML = `<div style="font-size:11px;color:var(--accent-red)">✕ ${(err as Error).message}</div>`;
+        const msg = (err as Error).message || 'Unknown error';
+        const isTimeout = msg.toLowerCase().includes('timed out');
+        if (area) area.innerHTML = `
+          <div style="font-size:11px;color:var(--accent-red);line-height:1.5">
+            ✕ ${msg}
+            ${isTimeout ? `<div style="margin-top:4px;color:var(--text-muted)">
+              Check on the VPS:<br>
+              <code style="font-size:10px;background:var(--bg-card);padding:1px 4px;border-radius:3px">systemctl status a3cargo-api</code>
+            </div>` : ''}
+          </div>`;
       }
     };
 
@@ -781,11 +790,18 @@ export function buildUI(callbacks: UICallbacks, user: AuthUser): void {
       submitBtn.textContent = 'Creating…';
 
       try {
-        await apiCreateUser(username, password, role);
+        const newUser = await apiCreateUser(username, password, role);
         usernameEl.value = '';
         passwordEl.value = '';
         showToast(`User "${username}" created (${role})`, 'success');
         await loadUserList();
+        // Briefly highlight the newly created row
+        const newRow = document.querySelector<HTMLElement>(`.user-row[data-uid="${newUser.id}"]`);
+        if (newRow) {
+          newRow.style.transition = 'background 0.2s ease';
+          newRow.style.background = 'var(--accent-green-dim, rgba(52,211,153,0.15))';
+          setTimeout(() => { newRow.style.background = ''; }, 2000);
+        }
       } catch (err) {
         errorEl.textContent = (err as Error).message || 'Could not create user.';
         errorEl.style.display = 'block';

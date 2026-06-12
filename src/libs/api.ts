@@ -74,6 +74,8 @@ export function clearAuth(): void {
 
 // ── Low-level fetch wrapper ───────────────────────────────────────────────────
 
+const REQUEST_TIMEOUT_MS = 10_000;
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
@@ -89,7 +91,20 @@ async function request<T>(
     if (token) headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { ...options, headers, signal: controller.signal });
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('Request timed out — is the API service running?');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (res.status === 401) {
     // Token expired or invalid — force re-login on next page load
