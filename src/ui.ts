@@ -296,6 +296,7 @@ export function buildUI(callbacks: UICallbacks, user: AuthUser): void {
           </div>
           <button class="theme-toggle-btn" id="theme-toggle" title="Switch to Dark Mode">🌙</button>
           <button class="theme-toggle-btn" id="btn-logout" title="Sign out" style="font-size:14px">⎋</button>
+          <button class="theme-toggle-btn" id="btn-panel-hide" title="Hide panel" style="font-size:15px;font-weight:700">«</button>
         </div>
       </div>
     </div>
@@ -829,6 +830,13 @@ export function buildUI(callbacks: UICallbacks, user: AuthUser): void {
   dropIndicator.id = 'drop-indicator';
   viewport.appendChild(dropIndicator);
 
+  // Floating "Reveal panel" button — visible only when left panel is collapsed
+  const revealBtn = document.createElement('button');
+  revealBtn.id = 'btn-panel-reveal';
+  revealBtn.title = 'Show panel';
+  revealBtn.textContent = '»';
+  viewport.appendChild(revealBtn);
+
   app.appendChild(viewport);
 
   document.body.appendChild(app);
@@ -1129,6 +1137,36 @@ export function buildUI(callbacks: UICallbacks, user: AuthUser): void {
       if (notice) notice.textContent = 'Load a project to view the container.';
     }
   }
+
+  // ===== PANEL COLLAPSE / REVEAL =====
+  const PANEL_COLLAPSED_KEY = 'a3cargo_panelCollapsed';
+
+  const togglePanel = (collapse: boolean) => {
+    if (collapse) {
+      leftPanel.classList.add('collapsed');
+      revealBtn.style.display = 'block';
+    } else {
+      leftPanel.classList.remove('collapsed');
+      revealBtn.style.display = 'none';
+    }
+    // Fire a resize event after the CSS transition (0.25s) so the Three.js
+    // renderer recalculates the canvas size to match the new viewport width.
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 270);
+    try { localStorage.setItem(PANEL_COLLAPSED_KEY, collapse ? '1' : '0'); } catch { /* ignore */ }
+  };
+
+  document.getElementById('btn-panel-hide')!.addEventListener('click', () => togglePanel(true));
+  revealBtn.addEventListener('click', () => togglePanel(false));
+
+  // Restore persisted collapsed state from the last session
+  try {
+    if (localStorage.getItem(PANEL_COLLAPSED_KEY) === '1') {
+      // Apply without animation on first load
+      leftPanel.style.transition = 'none';
+      togglePanel(true);
+      requestAnimationFrame(() => { leftPanel.style.transition = ''; });
+    }
+  } catch { /* ignore */ }
 }
 
 function renderLibraryItems(search: string, callbacks: UICallbacks): void {

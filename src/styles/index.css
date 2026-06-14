@@ -97,6 +97,46 @@ body {
   z-index: 10;
   overflow: hidden;
   resize: horizontal;
+  transition: width 0.25s ease, min-width 0.25s ease, border-right-color 0.25s ease;
+}
+
+#left-panel.collapsed {
+  width: 0 !important;
+  min-width: 0 !important;
+  border-right-color: transparent;
+  resize: none;
+}
+
+/* Floating button shown when panel is collapsed */
+#btn-panel-reveal {
+  display: none;
+  position: absolute;
+  top: 14px;
+  left: 10px;
+  z-index: 30;
+  background: rgba(22,27,38,0.92);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 7px 11px;
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-lg);
+  transition: var(--transition);
+  line-height: 1;
+}
+#btn-panel-reveal:hover {
+  color: var(--text-bright);
+  background: var(--bg-card);
+}
+body.light-mode #btn-panel-reveal {
+  background: rgba(255,255,255,0.92);
+}
+#left-panel.collapsed ~ #viewport-container #btn-panel-reveal,
+.panel-collapsed #btn-panel-reveal {
+  display: block;
 }
 
 .panel-header {
