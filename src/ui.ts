@@ -1141,12 +1141,21 @@ export function buildUI(callbacks: UICallbacks, user: AuthUser): void {
   // ===== PANEL COLLAPSE / REVEAL =====
   const PANEL_COLLAPSED_KEY = 'a3cargo_panelCollapsed';
 
+  // Track the expanded width so re-expanding always restores the correct size.
+  // (The CSS `resize: horizontal` feature can commit a stale width that prevents
+  //  the stylesheet's 380 px from being honoured after a collapse/expand cycle.)
+  let lastPanelWidth = '';
+
   const togglePanel = (collapse: boolean) => {
     if (collapse) {
+      // Snapshot the current width before hiding so we can restore it exactly.
+      lastPanelWidth = leftPanel.style.width || `${leftPanel.offsetWidth}px`;
       leftPanel.classList.add('collapsed');
       revealBtn.style.display = 'block';
     } else {
       leftPanel.classList.remove('collapsed');
+      // Explicitly restore the saved width; fall back to the CSS default.
+      leftPanel.style.width = lastPanelWidth || '380px';
       revealBtn.style.display = 'none';
     }
     // Fire a resize event after the CSS transition (0.25s) so the Three.js
