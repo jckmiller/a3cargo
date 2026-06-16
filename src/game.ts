@@ -52,6 +52,7 @@ import {
 import {
   buildUI,
   updateItemsList,
+  updateStagingList,
   updateStats,
   showItemInfo,
   showManifestModal,
@@ -135,6 +136,9 @@ export class ContainerVizApp {
   
   /** Array of all cargo items in the container */
   private items: CargoItem[] = [];
+
+  /** Items removed from the container and held in staging for re-use */
+  private stagedItems: CargoItem[] = [];
   
   /** Map of item IDs to their 3D mesh groups */
   private itemMeshes: Map<string, THREE.Group> = new Map();
@@ -363,6 +367,10 @@ export class ContainerVizApp {
       onSaveLoad: () => this.saveLoad(),
       onLoadFile: () => this.loadFile(),
       onImportFile: () => this.importLocalFile(),
+      onStageItem: (id) => this.stageItem(id),
+      onLoadFromStaging: (id) => this.loadFromStaging(id),
+      onRemoveFromStaging: (id) => this.removeFromStaging(id),
+      onClearStaging: () => this.clearStaging(),
     };
     buildUI(this.callbacks, this.user);
   }
@@ -921,6 +929,90 @@ export class ContainerVizApp {
   }
 
   // ========================================================================
+  // STAGING FUNCTIONALITY
+  // ========================================================================
+
+  /**
+   * Moves a loaded item from the container into staging.
+   * The item is removed from the 3D scene but preserved in stagedItems
+   * so it can be loaded back later.
+   */
+  private stageItem(id: string): void {
+    const item = this.items.find(i => i.id === id);
+    if (!item) return;
+
+    // Remove from active items and 3D scene
+    this.items = this.items.filter(i => i.id !== id);
+    const mesh = this.itemMeshes.get(id);
+    if (mesh) {
+      this.scene.remove(mesh);
+      this.itemMeshes.delete(id);
+    }
+    this.labelManager.removeLabel(id);
+    if (this.selectedItemId === id) {
+      this.selectedItemId = null;
+      showItemInfo(null, this.gridSize);
+    }
+
+    // Add to staging (reset position so autoPlace works cleanly when loading back)
+    const staged: CargoItem = { ...item, posX: 0, posY: 0, posZ: 0, visible: true };
+    this.stagedItems.push(staged);
+    showToast(`"${item.label}" moved to staging`, 'success');
+    this.refreshUI();
+    this.refreshStagingList();
+  }
+
+  /**
+   * Loads a staged item back into the container.
+   * The item is removed from staging, auto-placed, and restored to the 3D scene.
+   */
+  private loadFromStaging(id: string): void {
+    const idx = this.stagedItems.findIndex(i => i.id === id);
+    if (idx === -1) return;
+
+    const item = this.stagedItems[idx];
+
+    // Check fits in container
+    if (item.lengthIn > this.containerSpec.lengthIn ||
+        item.widthIn > this.containerSpec.widthIn ||
+        item.heightIn > this.containerSpec.heightIn) {
+      showToast(`"${item.label}" doesn't fit in the current container`, 'error');
+      return;
+    }
+
+    this.stagedItems.splice(idx, 1);
+    this.autoPlace(item);
+    this.items.push(item);
+    this.createItemMeshInternal(item);
+    this.labelManager.createLabel(item);
+    this.selectItem(item.id);
+
+    showToast(`"${item.label}" loaded back into container`, 'success');
+    this.refreshUI();
+    this.refreshStagingList();
+  }
+
+  /**
+   * Permanently removes a staged item (no undo).
+   */
+  private removeFromStaging(id: string): void {
+    const item = this.stagedItems.find(i => i.id === id);
+    if (!item) return;
+    this.stagedItems = this.stagedItems.filter(i => i.id !== id);
+    showToast(`"${item.label}" removed permanently`, 'success');
+    this.refreshStagingList();
+  }
+
+  /**
+   * Permanently clears all staged items.
+   */
+  private clearStaging(): void {
+    this.stagedItems = [];
+    this.refreshStagingList();
+    showToast('Staging cleared', 'success');
+  }
+
+  // ========================================================================
   // SAVE/LOAD FUNCTIONALITY
   // ========================================================================
 
@@ -942,6 +1034,7 @@ export class ContainerVizApp {
       version: '1.0',
       containerType: this.containerSpec.name,
       items: this.items,
+      staged: this.stagedItems.length > 0 ? this.stagedItems : undefined,
       preferences: {
         gridSize: this.gridSize,
         colorMode: this.colorMode,
@@ -1007,10 +1100,23 @@ export class ContainerVizApp {
       this.labelManager.createLabel(item);
     }
 
+    // Restore staged items if any were saved
+    if (savedLoad.staged && savedLoad.staged.length > 0) {
+      this.stagedItems = savedLoad.staged.map(itemData => ({
+        ...itemData,
+        acceptsOnTop: itemData.acceptsOnTop ?? 'all',
+        canStackOn: itemData.canStackOn ?? 'all',
+      }));
+    } else {
+      this.stagedItems = [];
+    }
+    this.refreshStagingList();
+
     this.refreshUI();
     this.resetView();
+    const stagingNote = this.stagedItems.length > 0 ? ` (${this.stagedItems.length} in staging)` : '';
     showToast(
-      `Loaded "${savedLoad.loadName || savedLoad.containerType}" — ${savedLoad.items.length} items`,
+      `Loaded "${savedLoad.loadName || savedLoad.containerType}" — ${savedLoad.items.length} items${stagingNote}`,
       'success'
     );
   }
@@ -1633,6 +1739,7 @@ export class ContainerVizApp {
   private refreshUI(): void {
     updateStats(this.items, this.containerSpec);
     this.refreshItemsList();
+    this.refreshStagingList();
   }
 
   private refreshItemsList(): void {
@@ -1641,6 +1748,14 @@ export class ContainerVizApp {
       onDelete: (id) => this.deleteItem(id),
       onToggleVis: (id) => this.toggleItemVisibility(id),
       onEdit: (id) => this.openEditModal(id),
+      onStage: (id) => this.stageItem(id),
+    });
+  }
+
+  private refreshStagingList(): void {
+    updateStagingList(this.stagedItems, {
+      onLoad: (id) => this.loadFromStaging(id),
+      onRemove: (id) => this.removeFromStaging(id),
     });
   }
 

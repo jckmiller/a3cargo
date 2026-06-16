@@ -391,6 +391,9 @@ export interface SavedLoad {
   /** Array of all cargo items with their positions and properties */
   items: CargoItem[];
   
+  /** Items removed from the container but held in staging for later re-use */
+  staged?: CargoItem[];
+  
   /** Optional user preferences */
   preferences?: {
     gridSize?: number;

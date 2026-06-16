@@ -839,6 +839,103 @@ body.light-mode #btn-panel-reveal {
   border-color: rgba(248,113,113,0.3);
 }
 
+.item-action-btn.stage:hover {
+  background: rgba(251,146,60,0.18);
+  color: var(--accent-orange);
+  border-color: rgba(251,146,60,0.3);
+}
+
+.item-action-btn.load:hover {
+  background: rgba(52,211,153,0.18);
+  color: var(--accent-green);
+  border-color: rgba(52,211,153,0.3);
+}
+
+/* ===== STAGING SECTION ===== */
+
+.staging-header {
+  background: var(--bg-tertiary);
+  border-top: 2px solid var(--border-color);
+}
+
+.staging-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--accent-orange);
+  color: #fff;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.staging-count-badge:empty {
+  display: none;
+}
+
+.staging-list-container {
+  flex-shrink: 0;
+  max-height: 35vh;
+  overflow-y: auto;
+  background: var(--bg-primary);
+}
+
+.staging-list-container::-webkit-scrollbar {
+  width: 5px;
+}
+
+.staging-list-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.staging-list-container::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+.staging-empty {
+  padding: 12px 18px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+  text-align: center;
+}
+
+.staging-card {
+  padding: 9px 18px;
+  border-bottom: 1px solid var(--border-color);
+  cursor: default;
+  transition: var(--transition);
+  background: rgba(251,146,60,0.03);
+}
+
+.staging-card:hover {
+  background: rgba(251,146,60,0.07);
+}
+
+.staging-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 3px;
+}
+
+.staging-card .item-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: var(--transition);
+  flex-shrink: 0;
+}
+
+.staging-card:hover .item-actions {
+  opacity: 1;
+}
+
 /* ===== VIEWPORT ===== */
 #viewport-container {
   flex: 1;

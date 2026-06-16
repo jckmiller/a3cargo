@@ -97,6 +97,10 @@ export interface UICallbacks {
   onSaveLoad: () => void;
   onLoadFile: () => void;
   onImportFile: () => void;
+  onStageItem: (id: string) => void;
+  onLoadFromStaging: (id: string) => void;
+  onRemoveFromStaging: (id: string) => void;
+  onClearStaging: () => void;
 }
 
 // ============================================================================
@@ -464,6 +468,25 @@ export function buildUI(callbacks: UICallbacks, user: AuthUser): void {
     </div>
   `;
   cargoTab.appendChild(itemsList);
+
+  // Staging section header
+  const stagingHeader = document.createElement('div');
+  stagingHeader.className = 'items-list-header staging-header';
+  stagingHeader.innerHTML = `
+    <div style="display:flex;align-items:center;gap:6px">
+      <div class="panel-section-title" style="margin-bottom:0">Staging</div>
+      <span class="staging-count-badge" id="staging-count"></span>
+    </div>
+    <button class="btn btn-sm btn-secondary" id="btn-clear-staging" title="Permanently remove all staged items" style="display:none">Clear</button>
+  `;
+  cargoTab.appendChild(stagingHeader);
+
+  // Staging list
+  const stagingList = document.createElement('div');
+  stagingList.className = 'staging-list-container';
+  stagingList.id = 'staging-list';
+  stagingList.innerHTML = `<div class="staging-empty">No items in staging</div>`;
+  cargoTab.appendChild(stagingList);
 
   leftPanel.appendChild(cargoTab);
 
@@ -1053,6 +1076,12 @@ export function buildUI(callbacks: UICallbacks, user: AuthUser): void {
     }
   });
 
+  document.getElementById('btn-clear-staging')?.addEventListener('click', () => {
+    if (confirm('Permanently remove all staged items? This cannot be undone.')) {
+      callbacks.onClearStaging();
+    }
+  });
+
   // Library tab controls — only wired when the tab exists in the DOM (non-viewer)
   if (user.role !== 'viewer') {
     document.getElementById('library-search')!.addEventListener('input', (e) => {
@@ -1541,6 +1570,7 @@ export function updateItemsList(
     onDelete: (id: string) => void;
     onToggleVis: (id: string) => void;
     onEdit: (id: string) => void;
+    onStage: (id: string) => void;
   }
 ): void {
   const list = document.getElementById('items-list')!;
@@ -1571,7 +1601,8 @@ export function updateItemsList(
         <div class="item-actions">
           <button class="item-action-btn" data-action="edit" data-item-id="${item.id}" title="Edit item (E)">✎</button>
           <button class="item-action-btn" data-action="visibility" data-item-id="${item.id}" title="${item.visible ? 'Hide' : 'Show'}">${item.visible ? '●' : '○'}</button>
-          <button class="item-action-btn danger" data-action="delete" data-item-id="${item.id}" title="Delete">×</button>
+          <button class="item-action-btn stage" data-action="stage" data-item-id="${item.id}" title="Move to Staging">↩</button>
+          <button class="item-action-btn danger" data-action="delete" data-item-id="${item.id}" title="Remove Permanently">×</button>
         </div>
       </div>
       <div class="item-details">
@@ -1590,6 +1621,7 @@ export function updateItemsList(
         const action = actionBtn.dataset.action;
         const itemId = actionBtn.dataset.itemId!;
         if (action === 'delete') callbacks.onDelete(itemId);
+        else if (action === 'stage') callbacks.onStage(itemId);
         else if (action === 'visibility') callbacks.onToggleVis(itemId);
         else if (action === 'edit') callbacks.onEdit(itemId);
         return;
@@ -1601,6 +1633,74 @@ export function updateItemsList(
       const target = e.target as HTMLElement;
       if (target.closest('[data-action]')) return;
       callbacks.onEdit((card as HTMLElement).dataset.itemId!);
+    });
+  });
+}
+
+// ============================================================================
+// STAGING LIST RENDERER
+// ============================================================================
+
+/**
+ * Renders the staging area in the Cargo tab panel.
+ * Staged items are displayed with a "Load" button (re-adds to container)
+ * and a "Remove" button (permanent delete).
+ */
+export function updateStagingList(
+  stagedItems: CargoItem[],
+  callbacks: {
+    onLoad: (id: string) => void;
+    onRemove: (id: string) => void;
+  }
+): void {
+  const list = document.getElementById('staging-list');
+  const countBadge = document.getElementById('staging-count');
+  const clearBtn = document.getElementById('btn-clear-staging') as HTMLButtonElement | null;
+
+  if (!list) return;
+
+  // Update count badge and clear button visibility
+  if (countBadge) {
+    countBadge.textContent = stagedItems.length > 0 ? `${stagedItems.length}` : '';
+  }
+  if (clearBtn) {
+    clearBtn.style.display = stagedItems.length > 0 ? '' : 'none';
+  }
+
+  if (stagedItems.length === 0) {
+    list.innerHTML = `<div class="staging-empty">No items in staging</div>`;
+    return;
+  }
+
+  list.innerHTML = stagedItems.map(item => `
+    <div class="staging-card" data-item-id="${item.id}">
+      <div class="staging-card-header">
+        <span class="item-name">
+          <span class="item-color" style="background:${item.color}"></span>
+          <span class="item-name-text">${item.label}</span>
+          <span class="category-badge ${item.category}">${item.category}</span>
+        </span>
+        <div class="item-actions">
+          <button class="item-action-btn load" data-action="load" data-item-id="${item.id}" title="Load back into container">↩</button>
+          <button class="item-action-btn danger" data-action="remove" data-item-id="${item.id}" title="Remove permanently">×</button>
+        </div>
+      </div>
+      <div class="item-details">
+        <span>${formatDimensions(item.lengthIn, item.widthIn, item.heightIn)}</span>
+        <span>${item.weightLbs.toLocaleString()} lbs</span>
+      </div>
+    </div>
+  `).join('');
+
+  list.querySelectorAll('.staging-card').forEach(card => {
+    card.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      const actionBtn = target.closest('[data-action]') as HTMLElement | null;
+      if (!actionBtn) return;
+      const action = actionBtn.dataset.action;
+      const itemId = actionBtn.dataset.itemId!;
+      if (action === 'load') callbacks.onLoad(itemId);
+      else if (action === 'remove') callbacks.onRemove(itemId);
     });
   });
 }
