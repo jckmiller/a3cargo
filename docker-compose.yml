@@ -1,0 +1,31 @@
+services:
+
+  # ── Frontend (Vite/TS → nginx) ──────────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.a3cargo.entrypoints=websecure"
+      - "traefik.http.routers.a3cargo.rule=Host(`a3cargo.jckmiller.com`)"
+      - "traefik.http.routers.a3cargo.tls.certresolver=letsencrypt"
+      - "traefik.http.services.a3cargo.loadbalancer.server.port=80"
+
+  # ── API (Node.js + Express + SQLite) ────────────────────────────────────────
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PORT: "3001"
+      DATA_DIR: "/data"
+    volumes:
+      - a3cargo_data:/data
+
+volumes:
+  a3cargo_data:

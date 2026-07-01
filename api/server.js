@@ -29,9 +29,9 @@ app.use(express.json({ limit: '5mb' }));
 app.use((req, res, next) => {
   const origin = req.headers.origin || '';
   const allowed = [
-    'http://localhost:5173',    // Vite dev server
-    'http://localhost:4173',    // Vite preview
-    'https://cargo.neoaiaeon.com',
+    'http://localhost:5173',       // Vite dev server
+    'http://localhost:4173',       // Vite preview
+    'https://a3cargo.jckmiller.com',
   ];
   if (allowed.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
@@ -74,6 +74,8 @@ if (!process.env.ADMIN_KEY) {
   console.warn('[WARN] ADMIN_KEY not set — user creation will only work while the DB is empty.');
 }
 
-app.listen(PORT, '127.0.0.1', () => {
-  console.log(`A3 Cargo API listening on http://127.0.0.1:${PORT}`);
+// Bind to 0.0.0.0 so the web container can reach this service over the
+// Docker bridge network (127.0.0.1 would be unreachable from other containers).
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`A3 Cargo API listening on http://0.0.0.0:${PORT}`);
 });

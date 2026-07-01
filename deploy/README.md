@@ -1,23 +1,49 @@
-# A3 Cargo — VPS Deployment Guide
+# A3 Cargo — Deployment Guide (Traefik / Docker Compose)
 
-Deploy the app to your Hostinger Ubuntu VPS at **https://cargo.neoaiaeon.com**
-
-> ⚠️ **This repository is private.** The VPS must authenticate via an SSH deploy key to clone/pull from GitHub. Complete the **SSH Deploy Key Setup** section below before running any deploy scripts.
+Deploy the app to **https://a3cargo.jckmiller.com** behind your existing Traefik instance.
 
 ---
 
-## SSH Deploy Key Setup (Required for Private Repo)
+## Architecture
 
-Run these commands on your VPS (as root):
+```
+Internet :443
+     │
+  [Traefik — host network, letsencrypt HTTP-01]
+     │  routes Host: a3cargo.jckmiller.com
+     │
+  [web container — nginx on bridge IP:80]
+     │  internal proxy /api → api:3001
+     │
+  [api container — Node.js/Express/SQLite]
+     │
+  [named volume: a3cargo_data → /data/a3cargo.db]
+```
+
+Both containers run on the compose default bridge network (`a3cargo_default`).  
+Traefik (host-mode) reaches the `web` container via its bridge IP on port 80.  
+The `api` container is **not** exposed to Traefik — only `web` talks to it.
+
+---
+
+## Prerequisites
+
+- DNS A record for `a3cargo.jckmiller.com` already points at this server ✓  
+- Traefik container `traefik-me0z-traefik-1` is running with `letsencrypt` resolver ✓  
+- Git SSH deploy key is set up (see **SSH Deploy Key Setup** below if not)
+
+---
+
+## SSH Deploy Key Setup (one-time, if not done)
 
 ```bash
-# 1. Generate a dedicated SSH key for this repo (no passphrase)
+# 1. Generate a key for this repo
 ssh-keygen -t ed25519 -C "a3cargo-vps-deploy" -f /root/.ssh/a3cargo_deploy -N ""
 
-# 2. Print the public key — copy this output
+# 2. Print public key — paste this into GitHub
 cat /root/.ssh/a3cargo_deploy.pub
 
-# 3. Configure SSH to use this key when connecting to GitHub
+# 3. Configure SSH to use it for GitHub
 cat >> /root/.ssh/config << 'EOF'
 Host github.com
   IdentityFile /root/.ssh/a3cargo_deploy
@@ -25,12 +51,9 @@ Host github.com
 EOF
 ```
 
-Then on GitHub:
-1. Go to the **a3cargo** repo → **Settings → Deploy keys → Add deploy key**
-2. Paste the public key, give it a name (e.g. `VPS Deploy Key`), leave **Allow write access** unchecked
-3. Click **Add key**
+On GitHub: **repo → Settings → Deploy keys → Add deploy key** (read-only is fine).
 
-Verify it works:
+Verify:
 ```bash
 ssh -T git@github.com
 # Expected: Hi jckmiller/a3cargo! You've successfully authenticated...
@@ -38,228 +61,109 @@ ssh -T git@github.com
 
 ---
 
-## Prerequisites (Do This First)
-
-**Point your DNS to the VPS before running any scripts.**
-
-1. Log in to [Hostinger](https://hpanel.hostinger.com)
-2. Navigate to **Domains → neoaiaeon.com → DNS / Nameservers**
-3. Add a new DNS record:
-   - **Type:** A
-   - **Name:** `cargo`
-   - **Points to:** `<your VPS IP address>`
-   - **TTL:** 3600 (or default)
-4. Wait 5–30 minutes for DNS to propagate
-
----
-
-## Deployment Steps
-
-SSH into your VPS first:
-```bash
-ssh root@<your-vps-ip>
-```
-
-> 📌 **Since the repo is private**, scripts can no longer be downloaded via raw `curl`. Complete the **SSH Deploy Key Setup** above first, then clone the repo in Step 2. Steps 3–7 are run directly from the cloned repo.
-
-Then run the scripts in order:
-
----
-
-### Step 1 — Install Docker, Nginx & Certbot
-
-Step 1 only requires system tools — copy the script to your VPS with `scp` from your local machine, or paste its contents manually:
+## First-time Deployment
 
 ```bash
-# From your LOCAL machine:
-scp deploy/01_vps_setup.sh root@<your-vps-ip>:~/
-```
-
-Then on the VPS:
-```bash
-sudo bash ~/01_vps_setup.sh
-```
-
-This installs:
-- Docker (to run the app container)
-- Nginx (host-level reverse proxy)
-- Certbot (free SSL from Let's Encrypt)
-- UFW firewall (opens ports 80, 443, SSH)
-
----
-
-### Step 2 — Clone Repo & Build the App
-
-> ⚠️ **Complete the SSH Deploy Key Setup above before this step.**
-
-Or clone manually then run the script from the repo:
-```bash
+# 1. Clone the repo
 git clone git@github.com:jckmiller/a3cargo.git /opt/a3cargo
-sudo bash /opt/a3cargo/deploy/02_deploy_app.sh
+cd /opt/a3cargo
+
+# 2. Generate secrets and write .env
+printf 'JWT_SECRET=%s\nADMIN_KEY=%s\n' \
+  "$(openssl rand -hex 32)" \
+  "$(openssl rand -hex 16)" > .env
+
+# 3. Build images and start
+docker compose up -d --build
+
+# 4. Watch the logs (Ctrl-C to stop watching)
+docker compose logs -f
 ```
 
-This:
-- Clones the GitHub repo to `/opt/a3cargo` via SSH
-- Builds the Docker image (TypeScript → Vite → nginx)
-- Runs the container on internal port `8080`
+That's it. Traefik will obtain the Let's Encrypt certificate automatically on the first request (HTTP-01 challenge). Visit **https://a3cargo.jckmiller.com** once the containers are up.
 
-> ⏱ The build takes 1–3 minutes the first time.
+**Default login:** `admin` / `123123`  
+⚠️ **Change the password immediately** via Settings → User Management in the app.
 
 ---
 
-### Step 3 — Configure Nginx + SSL
+## Creating Additional Users
 
-> ⚠️ **DNS must be propagated before this step**, or the SSL cert will fail.
+Once logged in as admin, use the in-app **User Management** panel  
+(Settings tab → User Management) to create users with `editor` or `viewer` roles.
 
-**Edit the email address** in the script before running:
+Or via the API directly:
+
 ```bash
-nano /opt/a3cargo/deploy/03_configure_nginx.sh
-# Change: EMAIL="admin@neoaiaeon.com"
-# To your actual email address
+# Read the ADMIN_KEY you generated
+ADMIN_KEY=$(grep ADMIN_KEY /opt/a3cargo/.env | cut -d= -f2)
+
+curl -s -X POST https://a3cargo.jckmiller.com/api/register \
+  -H "Content-Type: application/json" \
+  -H "X-Admin-Key: $ADMIN_KEY" \
+  -d '{"username":"alice","password":"SecurePass1","role":"editor"}' | jq
 ```
 
-Then run it:
-```bash
-sudo bash /opt/a3cargo/deploy/03_configure_nginx.sh
-```
-
-This:
-- Creates an nginx reverse proxy config for `cargo.neoaiaeon.com`
-- Gets a free SSL certificate from Let's Encrypt
-- Enables auto-redirect from HTTP → HTTPS
-- Sets up automatic cert renewal
+Valid roles: `editor` (can save/load projects) · `viewer` (read-only)
 
 ---
 
-### Step 4 — Add Basic Auth *(optional, pre-API)*
-
-```bash
-sudo bash /opt/a3cargo/deploy/04_add_auth.sh
-```
-
-This:
-- Creates an nginx `.htpasswd` credentials file
-- Protects the site with HTTP Basic Auth (browser login prompt)
-- Credentials: **username:** `user` / **password:** `123123`
-
-> **Note:** This is a temporary gate. Once you complete Steps 5–7 to set up the API and JWT authentication, Step 6 will remove the Basic Auth in favour of the app's own login system.
-
----
-
-### Step 5 — Install & Start the API
-
-```bash
-sudo bash /opt/a3cargo/deploy/05_setup_api.sh
-```
-
-This:
-- Installs Node.js LTS (if not already present)
-- Copies the `api/` source to `/opt/a3cargo-api` and runs `npm install`
-- Creates `/var/lib/a3cargo` as the SQLite data directory
-- Generates random `JWT_SECRET` and `ADMIN_KEY` values and writes them to `/etc/a3cargo-api.env`
-- Registers and starts a **systemd service** called `a3cargo-api` (auto-restarts on failure, survives reboots)
-- Verifies the API is responding via a health-check to `GET /api/health`
-
-> ⚠️ **Save the `ADMIN_KEY` printed at the end** — you will need it in Step 7.
-
----
-
-### Step 6 — Update Nginx to Proxy the API
-
-```bash
-sudo bash /opt/a3cargo/deploy/06_update_nginx_api.sh
-```
-
-This:
-- Backs up the existing nginx config
-- Rewrites the nginx server block to proxy `/api/*` to the Node.js API on port `3001`
-- Removes the HTTP Basic Auth protection (replaced by JWT in the app)
-- Reloads nginx
-
----
-
-### Step 7 — Create Your First User
-
-```bash
-sudo bash /opt/a3cargo/deploy/07_create_user.sh <username> <password> editor
-```
-
-Examples:
-```bash
-sudo bash 07_create_user.sh alice MyPassword123 editor
-sudo bash 07_create_user.sh bob  ViewOnly456    viewer
-```
-
-This posts to `POST /api/register` with the `ADMIN_KEY` from `/etc/a3cargo-api.env` to create the specified user.
-Valid roles: `editor` (can save/load projects) or `viewer` (read-only).
-
-> **Note:** A default `admin` account (`admin` / `123123`) is seeded automatically on first startup. Change its password via the **User Management** panel in the app (Settings tab → User Management) after logging in.
-
----
-
-### ✅ Done!
-
-Visit **https://cargo.neoaiaeon.com** — your app should be live with full JWT authentication.
-
----
-
-## Updating the App in the Future
+## Updating the App
 
 Whenever you push new code to GitHub, SSH into the VPS and run:
 
 ```bash
-sudo bash /opt/a3cargo/deploy/update.sh
+cd /opt/a3cargo
+git pull
+docker compose up -d --build
 ```
 
-This pulls the latest code via SSH, rebuilds the Docker image, and restarts the container with zero config changes needed.
+---
+
+## Useful Commands
+
+```bash
+# Container status
+docker compose -f /opt/a3cargo/docker-compose.yml ps
+
+# Live logs
+docker compose -f /opt/a3cargo/docker-compose.yml logs -f
+
+# Restart everything
+docker compose -f /opt/a3cargo/docker-compose.yml restart
+
+# SQLite shell (inspect data)
+docker compose -f /opt/a3cargo/docker-compose.yml exec api \
+  sqlite3 /data/a3cargo.db
+
+# View Traefik routing
+docker inspect traefik-me0z-traefik-1 | grep -i a3cargo
+```
 
 ---
 
 ## Troubleshooting
 
-**Check if the container is running:**
-```bash
-docker ps
-```
+**Site returns 404 / Bad Gateway immediately after first deploy**  
+Wait ~30 seconds — Traefik needs one incoming request to trigger the ACME challenge and issue the cert.
 
-**View container logs:**
+**`web` container starts but API calls return errors**  
 ```bash
-docker logs a3cargo
+docker compose logs api
 ```
+Check that `.env` has valid `JWT_SECRET` and `ADMIN_KEY` values.
 
-**Check nginx status:**
-```bash
-systemctl status nginx
-nginx -t
-```
+**`better-sqlite3` build error during `api` image build**  
+The `api/Dockerfile` installs `python3 make g++` for native addon compilation.  
+If it still fails, check the build output: `docker compose build api`.
 
-**Test SSL certificate:**
-```bash
-certbot certificates
-```
-
-**Manually renew SSL:**
-```bash
-certbot renew
-```
-
-**Restart everything:**
-```bash
-docker restart a3cargo
-systemctl restart nginx
-```
+**Check Traefik sees the container**  
+The Traefik dashboard (if enabled) or `docker inspect <web-container-id> | grep traefik` will show the labels.
 
 ---
 
-## Architecture
+## Legacy Scripts
 
-```
-Internet (HTTPS :443)
-        │
-   [Nginx on host]         ← Terminates SSL, handles domain
-        │
-   [Docker container]      ← nginx inside container serves static files
-   127.0.0.1:8080         ← Only accessible from localhost
-        │
-   Built Vite/TS app       ← /usr/share/nginx/html inside container
-```
+The `deploy/01_vps_setup.sh` through `deploy/07_create_user.sh` scripts describe an older  
+**host nginx + certbot + systemd** deployment model that conflicts with Traefik.  
+They are kept for reference only — **do not run them on a Traefik server.**
