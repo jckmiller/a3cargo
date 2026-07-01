@@ -30,42 +30,14 @@ The `api` container is **not** exposed to Traefik — only `web` talks to it.
 
 - DNS A record for `a3cargo.jckmiller.com` already points at this server ✓  
 - Traefik container `traefik-me0z-traefik-1` is running with `letsencrypt` resolver ✓  
-- Git SSH deploy key is set up (see **SSH Deploy Key Setup** below if not)
-
----
-
-## SSH Deploy Key Setup (one-time, if not done)
-
-```bash
-# 1. Generate a key for this repo
-ssh-keygen -t ed25519 -C "a3cargo-vps-deploy" -f /root/.ssh/a3cargo_deploy -N ""
-
-# 2. Print public key — paste this into GitHub
-cat /root/.ssh/a3cargo_deploy.pub
-
-# 3. Configure SSH to use it for GitHub
-cat >> /root/.ssh/config << 'EOF'
-Host github.com
-  IdentityFile /root/.ssh/a3cargo_deploy
-  StrictHostKeyChecking no
-EOF
-```
-
-On GitHub: **repo → Settings → Deploy keys → Add deploy key** (read-only is fine).
-
-Verify:
-```bash
-ssh -T git@github.com
-# Expected: Hi jckmiller/a3cargo! You've successfully authenticated...
-```
 
 ---
 
 ## First-time Deployment
 
 ```bash
-# 1. Clone the repo
-git clone git@github.com:jckmiller/a3cargo.git /opt/a3cargo
+# 1. Clone the repo (public — no SSH key needed)
+git clone https://github.com/jckmiller/a3cargo.git /opt/a3cargo
 cd /opt/a3cargo
 
 # 2. Generate secrets and write .env
@@ -114,7 +86,7 @@ Whenever you push new code to GitHub, SSH into the VPS and run:
 
 ```bash
 cd /opt/a3cargo
-git pull
+git pull   # HTTPS, no auth needed (public repo)
 docker compose up -d --build
 ```
 
