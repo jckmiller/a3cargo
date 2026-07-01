@@ -371,6 +371,16 @@ export const DEFAULT_LIBRARY: LibraryItemDef[] = [
     category: 'heavy',
     group: 'Industrial',
   },
+  {
+    name: 'Trailer Crate',
+    icon: '📦',
+    lengthIn: 133,
+    widthIn: 97,
+    heightIn: 52,
+    weightLbs: 500,
+    category: 'heavy',
+    group: 'Industrial',
+  },
 ];
 
 // ============================================================================
