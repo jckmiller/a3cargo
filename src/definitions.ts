@@ -375,7 +375,7 @@ export const DEFAULT_LIBRARY: LibraryItemDef[] = [
     name: 'Trailer Crate',
     icon: '📦',
     lengthIn: 133,
-    widthIn: 97,
+    widthIn: 79,
     heightIn: 52,
     weightLbs: 500,
     category: 'heavy',
